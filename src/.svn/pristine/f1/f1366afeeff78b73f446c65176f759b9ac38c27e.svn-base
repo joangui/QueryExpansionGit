@@ -1,0 +1,137 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package pipelines;
+
+import configurations.Configuration;
+import expansionBlocks.CreateCommunitiesFromPaths;
+import expansionBlocks.CreatePaths;
+import expansionBlocks.EvalResults;
+import expansionBlocks.ExecuteQuery;
+import expansionBlocks.ProcessCommunities;
+import expansionBlocks.QueryPreProcess;
+import expansionBlocks.SelectPaths;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import model.Query;
+
+/**
+ *
+ * @author joan
+ */
+public class QueryExpansionPipeline extends PipelineChooser
+{
+
+static public void execute(Configuration configuration) throws Exception
+{
+	Configuration.EXPANSION_BLOCK startPoint = configuration.getStartPoint();
+	Configuration.EXPANSION_BLOCK endPoint = configuration.getEndPoint();
+	Configuration.EXPANSION_BLOCK currentPoint;
+
+	SortedSet<Query> queries = null;
+	long start_time = 0, end_time = 0;
+	StringBuilder sb = new StringBuilder();
+
+	if (startPoint != Configuration.EXPANSION_BLOCK.READ_QUERIES)
+	{
+		start_time = System.currentTimeMillis();
+		queries = new TreeSet(Query.deserialize(configuration));
+		end_time = System.currentTimeMillis();
+		sb.append("DESERIALIZE TIME: ").append((end_time - start_time) / 1000.0).append("s., AVG: ").append((end_time - start_time) / 1000.0 / queries.size()).append("s. per query\n");
+	}
+
+	switch (startPoint)
+	{
+
+		case READ_QUERIES:
+			start_time = System.currentTimeMillis();
+			queries = new TreeSet(readQueries(configuration));
+			end_time = System.currentTimeMillis();
+			sb.append("READ QUERIES TIME: ").append((end_time - start_time) / 1000.0).append("s., AVG: ").append((end_time - start_time) / 1000.0 / queries.size()).append("s. per query\n");
+			currentPoint = Configuration.EXPANSION_BLOCK.READ_QUERIES;
+			if (endPoint == currentPoint)
+				break;
+
+		case QUERY_PREPROCESS:
+			start_time = System.currentTimeMillis();
+			QueryPreProcess.execute(configuration, queries);
+			end_time = System.currentTimeMillis();
+			sb.append("QUERY_PREPROCESS TIME: ").append((end_time - start_time) / 1000.0).append("s., AVG: ").append((end_time - start_time) / 1000.0 / queries.size()).append("s. per query\n");
+			currentPoint = Configuration.EXPANSION_BLOCK.QUERY_PREPROCESS;
+			if (endPoint == currentPoint)
+				break;
+
+		case CREATE_PATH:
+			start_time = System.currentTimeMillis();
+			CreatePaths.execute(configuration, queries);
+			end_time = System.currentTimeMillis();
+			sb.append("CREATE PATH TIME: ").append((end_time - start_time) / 1000.0).append("s., AVG: ").append((end_time - start_time) / 1000.0 / queries.size()).append("s. per query\n");
+			currentPoint = Configuration.EXPANSION_BLOCK.CREATE_PATH;
+			if (endPoint == currentPoint)
+				break;
+
+		case SELECT_PATH:
+			start_time = System.currentTimeMillis();
+			SelectPaths.execute(configuration, queries);
+			end_time = System.currentTimeMillis();
+			sb.append("SELECT PATH TIME: ").append((end_time - start_time) / 1000.0).append("s., AVG: ").append((end_time - start_time) / 1000.0 / queries.size()).append("s. per query\n");
+			currentPoint = Configuration.EXPANSION_BLOCK.SELECT_PATH;
+			if (endPoint == currentPoint)
+				break;
+
+		case CREATE_COMMUNITIES:
+			start_time = System.currentTimeMillis();
+			CreateCommunitiesFromPaths.execute(configuration, queries);
+			end_time = System.currentTimeMillis();
+			sb.append("CREATE_COMMUNITIES TIME: ").append((end_time - start_time) / 1000.0).append("s., AVG: ").append((end_time - start_time) / 1000.0 / queries.size()).append("s. per query\n");
+			currentPoint = Configuration.EXPANSION_BLOCK.CREATE_COMMUNITIES;
+			if (endPoint == currentPoint)
+				break;
+
+		case PROCESS_COMMUNITIES:
+			start_time = System.currentTimeMillis();
+			ProcessCommunities.execute(configuration, queries);
+			end_time = System.currentTimeMillis();
+			sb.append("PROCESS COMMUNITIES TIME: ").append((end_time - start_time) / 1000.0).append("s., AVG: ").append((end_time - start_time) / 1000.0 / queries.size()).append("s. per query\n");
+			currentPoint = Configuration.EXPANSION_BLOCK.PROCESS_COMMUNITIES;
+			if (endPoint == currentPoint)
+				break;
+
+		case EXECUTE_QUERIES:
+			start_time = System.currentTimeMillis();
+			ExecuteQuery.execute(configuration, queries);
+			end_time = System.currentTimeMillis();
+			sb.append("EXECUTE QUERY TIME: ").append((end_time - start_time) / 1000.0).append("s., AVG: ").append((end_time - start_time) / 1000.0 / queries.size()).append("s. per query\n");
+			currentPoint = Configuration.EXPANSION_BLOCK.EXECUTE_QUERIES;
+			if (endPoint == currentPoint)
+				break;
+
+		case EVAL_RESULTS:
+			start_time = System.currentTimeMillis();
+			EvalResults.execute(configuration, queries);
+			end_time = System.currentTimeMillis();
+			sb.append("EVAL RESULTS TIME: ").append((end_time - start_time) / 1000.0).append("s., AVG: ").append((end_time - start_time) / 1000.0 / queries.size()).append("s. per query\n");
+			currentPoint = Configuration.EXPANSION_BLOCK.EVAL_RESULTS;
+			if (endPoint == currentPoint)
+				break;
+
+	}
+
+	start_time = System.currentTimeMillis();
+	Query.serialize(configuration, queries);
+	end_time = System.currentTimeMillis();
+	sb.append("SERIALIZE TIME: ").append((end_time - start_time) / 1000.0).append("s., AVG: ").append((end_time - start_time) / 1000.0 / queries.size()).append("s. per query\n");
+
+	println(sb);
+
+}
+
+
+
+private static void println(Object string)
+{
+	System.out.println("	[QueryExpansionPipeline.java]: " + string);
+}
+}

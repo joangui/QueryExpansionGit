@@ -1,0 +1,88 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package pipelines;
+
+import configurations.Configuration;
+import expansionBlocks.EvalResults;
+import expansionBlocks.IdentifyEntities;
+import expansionBlocks.MultipleEntityQueryExpansion;
+import expansionBlocks.QueryPreProcess;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import model.Entity;
+import model.Query;
+import static pipelines.PipelineChooser.readQueries;
+import utils.IndriModule;
+
+/**
+ *
+ * @author joan
+ */
+public class EntityTestPipeLine
+{
+
+static void execute(Configuration configuration) throws Exception
+{
+	SortedSet<Query> queries = new TreeSet<>();
+
+	queries = readQueries(configuration);
+
+	QueryPreProcess.execute(configuration, queries);
+	IdentifyEntities.execute(configuration, queries);
+	IdentifyEntities.getSynonyms(configuration, queries);
+	MultipleEntityQueryExpansion.execute(configuration, queries);
+
+
+
+	
+	
+
+	StringBuilder base64Query = new StringBuilder("#weight(");
+	StringBuilder plainQuery = new StringBuilder("#weight(");
+
+	for (Query query : queries)
+	{
+		String input = query.getInput();
+		String constructSimpleQuery = IndriModule.getCombineBase64Query(input);
+		String constructSimplePlainQuery = IndriModule.getCombinePlainQuery(input);
+		println("Simple Input Query = " + constructSimpleQuery);
+
+//		for (Map.Entry<String, Set<String>> e : entitySynonyms.entrySet())
+		Set<Entity> inputEntities = query.getInputEntities();
+		for(Entity entity : inputEntities)
+		{
+
+			String synonymsPlainQuery = IndriModule.getEntityPlainQuery(entity);
+			String synonymsBased64Query = IndriModule.getEntityBased64Query(entity);
+//			synonymsQuery="#wsyn( 1.0 donald 0.8 don 0.5 donnie 0.2 donny )";
+			println("Synonyms " + synonymsBased64Query);
+//			IndriModule.getVideos(configuration, query, synonymsQuery);
+
+			base64Query.append("1.0").append(synonymsBased64Query);
+			plainQuery.append("1.0").append(synonymsPlainQuery);
+		}
+		base64Query.append(")");
+		plainQuery.append(")");
+
+		base64Query = new StringBuilder("#combine(" + constructSimpleQuery + " " + base64Query + ")");
+		plainQuery = new StringBuilder("#combine(" + constructSimplePlainQuery + " " + plainQuery + ")");
+		println("Base64 Query: " + base64Query);
+		println("Plain Query: " + plainQuery);
+		Map<String, Double> videos = IndriModule.getVideos(configuration, query);
+		query.setResult(videos);
+
+	}
+	EvalResults.execute(configuration, queries);
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[EntityTestPipeLine.java]: " + string);
+}
+
+}

@@ -1,0 +1,863 @@
+package model;
+
+import Structures.MapUtils;
+import edu.upc.dama.dex.bean.EntityBean;
+import edu.upc.dama.dex.core.Graph;
+import edu.upc.dama.dex.core.Objects;
+import edu.upc.dama.dex.core.Operation;
+import edu.upc.dama.dex.core.TextStream;
+import edu.upc.dama.dex.core.Value;
+import edu.upc.dama.dex.utils.DexUtil;
+import edu.upc.dama.servlet.listeners.DexServletContextListener;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ * Classe que representa una categoria de viquipèdia.
+ *
+ * @author ntrench
+ *
+ */
+public class Article extends EntityBean
+{
+
+public static int CLASS_ID; // identificador de classe
+public static int TOKEN_ID;
+public static int VIDEO_ID;
+public static String VIDEO_ID_NAME = "Video";
+public static int ARTICLE_TOKENS_ID;
+//// public static int ARTICLE_CONTENT_TOKENS_ID;
+public static int ARTICLE_TITLE_TOKENS_ID;
+public static int CATEGORY_ID;
+public static int ARTICLE_ID;
+public static int BELONGS_ID;
+public static int LINKS_ID;
+public static int REDIRECTS_ID;
+public static long TITLE_ATTR_ID;
+public static long CONTENT_ATTR_ID;
+public static long TOKEN_ATTR_ID;
+public static long TOKEN_WEIGHT_ATTR_ID;
+public static long NAME_ATTR_ID;
+public static long ARTICLE_TOKENS_TFIDF_ATTR_ID;
+public static String NAME_ATTR_NAME = "name";
+public static String TITLE_ATTR_NAME = "title";
+public static String CONTENT_ATTR_NAME = "content";
+public static String TOKEN_ATTR_NAME = "token";
+public static String TOKEN_ID_NAME = "Token";
+public static String TOKEN_WEIGHT_ATTR_NAME = "weight";
+public static String ARTICLE_ID_NAME = "Article";
+public static String CATEGORY_ID_NAME = "Category";
+public static String BELONGS_ID_NAME = "belongs";
+public static String REDIRECTS_ID_NAME = "redirects";
+public static String LINKS_ID_NAME = "links";
+public static String ARTICLE_TOKENS_ID_NAME = "article_tokens";
+public static String ARTICLE_TITLE_TOKENS_ID_NAME = "articleTitle_tokens";
+public static String DOC_TOKEN_TF_IDF_ATTR_NAME = "weight";
+public static String VIDEO_TOKENS_ID_NAME = "video_tokens";
+public static int VIDEO_TOKENS_ID;
+public static long VIDEO_TITLE_ID;
+public static long VIDEO_TYPE_ID;
+public static long VIDEO_TEXT_ID;
+public static long VIDEO_ABSTRACT_ID;
+public static String VIDEO_TITLE_ID_NAME = "title";
+public static String VIDEO_TYPE_ID_NAME = "doc_type";
+public static String VIDEO_TEXT_ID_NAME = "text";
+public static String VIDEO_ABSTRACT_ID_NAME = "abstract";
+private boolean ambiguous = false;
+
+private Long id;
+private String title;
+private String content;
+static Graph g = DexUtil.getDBGraph();
+
+static
+{
+	Graph g = DexUtil.getDBGraph();
+	Set<Long> attributes;
+
+	CLASS_ID = g.findType(Article.class.getSimpleName());
+
+	TOKEN_ID = g.findType(TOKEN_ID_NAME);
+	TOKEN_ATTR_ID = g.findAttribute(TOKEN_ID, TOKEN_ATTR_NAME);
+	TOKEN_WEIGHT_ATTR_ID = g.findAttribute(TOKEN_ID, TOKEN_WEIGHT_ATTR_NAME);
+
+	CATEGORY_ID = g.findType(CATEGORY_ID_NAME);
+	NAME_ATTR_ID = g.findAttribute(CATEGORY_ID, NAME_ATTR_NAME);
+
+	ARTICLE_ID = g.findType(ARTICLE_ID_NAME);
+
+	BELONGS_ID = g.findType(BELONGS_ID_NAME);
+
+	REDIRECTS_ID = g.findType(REDIRECTS_ID_NAME);
+	LINKS_ID = g.findType(LINKS_ID_NAME);
+
+	ARTICLE_TOKENS_ID = g.findType(ARTICLE_TOKENS_ID_NAME);
+	ARTICLE_TITLE_TOKENS_ID = g.findType(ARTICLE_TITLE_TOKENS_ID_NAME);
+
+	ARTICLE_TOKENS_TFIDF_ATTR_ID = g.findAttribute(ARTICLE_TOKENS_ID, DOC_TOKEN_TF_IDF_ATTR_NAME);
+	VIDEO_TOKENS_ID = g.findType(VIDEO_TOKENS_ID_NAME);
+
+	attributes = g.getAttributesFromType(CLASS_ID);
+
+	HashMap<String, Long> attribute = new HashMap<String, Long>(
+			attributes.size());
+
+	Iterator<Long> attributesIt = attributes.iterator();
+	while (attributesIt.hasNext())
+	{
+		long currentAttr = attributesIt.next();
+		Graph.AttributeData aData = g.getAttributeData(currentAttr);
+		attribute.put(aData.getName(), currentAttr);
+	}
+
+	TITLE_ATTR_ID = attribute.get(TITLE_ATTR_NAME);
+	CONTENT_ATTR_ID = attribute.get(CONTENT_ATTR_NAME);
+
+	VIDEO_ID = g.findType(VIDEO_ID_NAME);
+	attributes = g.getAttributesFromType(VIDEO_ID);
+
+	attribute = new HashMap<String, Long>(
+			attributes.size());
+
+	attributesIt = attributes.iterator();
+	while (attributesIt.hasNext())
+	{
+		long currentAttr = attributesIt.next();
+		Graph.AttributeData aData = g.getAttributeData(currentAttr);
+		attribute.put(aData.getName(), currentAttr);
+	}
+
+	VIDEO_TITLE_ID = attribute.get(VIDEO_TITLE_ID_NAME);
+	VIDEO_TYPE_ID = attribute.get(VIDEO_TYPE_ID_NAME);
+	VIDEO_TEXT_ID = attribute.get(VIDEO_TEXT_ID_NAME);
+	VIDEO_ABSTRACT_ID = attribute.get(VIDEO_ABSTRACT_ID_NAME);
+
+	/*  public static String VIDEO_TITLE_ID_NAME="title";
+	 public static String VIDEO_TYPE_ID_NAME="type";
+	 public static String VIDEO_TEXT_ID_NAME="text";
+	 public static String VIDEO_ABSTRACT_ID_NAME="abstract";*/
+}
+
+public static void printCommunities(Set<Map<Article, Double>> communities)
+{
+	for (Map<Article, Double> community : communities)
+	{
+		printCommunity(community);
+	}
+}
+
+public static void printCommunity(Map<Article, Double> community)
+{
+	boolean first = true;
+	System.out.print("{");
+	for (Map.Entry<Article, Double> e : community.entrySet())
+	{
+		Article a = e.getKey();
+		Double w = e.getValue();
+
+		if (!first)
+		{
+			System.out.print(",");
+		}
+		System.out.print("[" + a.title + "," + w + "]");
+		first = false;
+	}
+	System.out.println("}");
+}
+
+/**
+ * identificador d'article
+ */
+public Article(long id)
+{
+	if (g.getType(id) != CLASS_ID)
+	{
+		println("[WARNING]: Id \"" + id + "\" is not an Article");
+		this.id = null;
+		title = null;
+		content = null;
+	} else
+	{
+		this.id = id;
+		title = null;
+		content = null;
+		this.setObjectIdentifier(id);
+	}
+}
+
+public boolean isAmbiguous()
+{
+	return ambiguous;
+}
+
+public Article(String title)
+{
+
+	//title = title + " (disambiguation)";
+	long findAttribute = g.findAttribute(CLASS_ID, "title");
+	Objects select = g.select(findAttribute, Graph.OPERATION_EQ, new Value(title));
+	if (select.isEmpty())
+	{
+		this.id = null;
+		title = null;
+		content = null;
+	} else
+	{
+		long id = select.first();
+		if (select.size() > 1)
+		{
+			//println("[WARNING] there are more than one article called:\"" + title + "\"");
+			id = desambiguateArticle(select);
+			this.ambiguous = true;
+		}
+		this.id = id;
+		this.title = title;
+		content = null;
+		this.setObjectIdentifier(id);
+	}
+	if (title == "ballet dress")
+	{
+		println("Ballet dress articles: ");
+		for (Long id : select)
+		{
+			Article a = new Article(id);
+			println(a.getTitle());
+		}
+	}
+
+	select.close();
+}
+
+/*    public Article(long id, String title, String content) {
+ this.id = id;
+ this.title = title;
+ this.content = content;
+ }*/
+/*
+ public Article(long id, String title) {
+ this.id = id;
+ this.title = title;
+ this.content = null;
+ }*/
+/*    public String getContent() throws IOException
+ {
+ if (content == null)
+ {
+ content = articleDAO.getContent(id);//getStringFromTextAttribute(g.getAttribute(id, g.findAttribute(g.getType(id), "content")));
+ }
+ return content;
+ }
+ */
+public void setContent(String content)
+{
+	this.content = content;
+}
+
+public Long getId()
+{
+	return id;
+}
+
+public void setId(long id)
+{
+	this.id = id;
+}
+
+public void setTitle(String title)
+{
+	this.title = title;
+}
+
+public String getTitle()
+{
+
+	if (title == null)
+	{
+		if (g.getType(id) == CLASS_ID)
+		{
+			title = g.getAttribute(id, g.findAttribute(g.getType(id), "title")).toString();
+			try
+			{
+				byte[] bytes = title.getBytes("latin1");
+				title = new String(bytes, "UTF8");
+			} catch (UnsupportedEncodingException ex)
+			{
+				Logger.getLogger(Article.class.getName()).log(Level.SEVERE, null, ex);
+			}
+		}
+
+	}
+	return title;
+}
+
+private String getStringFromTextAttribute(Value value) throws IOException
+{
+	// Value value = graph.getAttribute(nodeId, attributteType);
+	if (value.isNull())
+	{
+		return "";
+	}
+	TextStream tstrm = value.getTextStream();
+	StringBuilder sb = new StringBuilder();
+	char[] buff = new char[200];
+	int len = 0;
+	while ((len = tstrm.read(buff, 0, 200)) > 0)
+	{
+		sb.append(buff, 0, len);
+	}
+	tstrm.close();
+	String result = new String(String.valueOf(sb.toString()).getBytes(), "UTF-8");
+	return result;
+}
+
+@Override
+public String toString()
+{
+	return this.getTitle() + "(" + id + ")";
+}
+
+static public Set<Article> getLinkedArticles(List<Long> path, short direction)
+{
+	Set<Long> neighbors = getNeighbors(path, direction);
+	Set<Article> articleNeighbors = new HashSet<Article>();
+	for (long id : neighbors)
+	{
+		articleNeighbors.add(new Article(id));
+	}
+	return articleNeighbors;
+}
+
+static public Set<Long> getNeighbors(Long id, short direction)
+{
+
+	int LINKS_ID = g.findType("links");
+
+	Objects o = new Objects(g.getSession());
+
+	Objects neighbors = g.neighbors(id, LINKS_ID, direction);
+	o.close();
+	Set<Long> result = new HashSet<Long>(neighbors);
+	neighbors.close();
+	return result;
+}
+
+static public Set<Long> getNeighbors(List<Long> path, short direction)
+{
+
+	int LINKS_ID = g.findType("links");
+
+	Objects o = new Objects(g.getSession());
+
+	for (Long id : path)
+	{
+		o.add(id);
+	}
+	Objects neighbors = g.neighbors(o, LINKS_ID, direction);
+	o.close();
+	Set<Long> result = new HashSet<Long>(neighbors);
+	neighbors.close();
+	return result;
+}
+
+static public Set<Token> getSynonymsThroughArticles(Token t)
+{
+	Set<Token> result = new HashSet<Token>();
+	Graph g = DexUtil.getDBGraph();
+	Objects articlesToAnalyze = new Objects(g.getSession());
+
+	Objects candidateArticle = g.neighbors(t.getId(), ARTICLE_TITLE_TOKENS_ID, Graph.EDGES_IN);
+	Objects.Iterator candidateArticle_it = candidateArticle.iterator();
+	while (candidateArticle_it.hasNext())
+	{
+		long candidateArticle_id = candidateArticle_it.next();
+
+		Article a = new Article(candidateArticle_id);
+		String tmp = a.getTitle().trim();
+		String[] split = tmp.split("\\ ");
+		if (split.length == 1 && (new Article(candidateArticle_id)).getTitle().equalsIgnoreCase(t.getName()))
+		{
+			articlesToAnalyze.add(candidateArticle_id);
+
+		}
+	}
+//        System.out.print("Articles candidats pel token \"" + t + "\": ");
+	for (Long l : articlesToAnalyze)
+	{
+		//          System.out.print((new Article(l)));
+	}
+	//    System.out.println();
+	candidateArticle_it.close();
+	candidateArticle.close();
+
+	Objects synonymArticles = new Objects(g.getSession());
+	Objects.Iterator articlesToAnalyze_it = articlesToAnalyze.iterator();
+	while (articlesToAnalyze_it.hasNext())
+	{
+		long id = articlesToAnalyze_it.next();
+//            System.out.print("                redirects tipus 1 de: \"" + (new Article(id)).getTitle() + "\"");
+		Objects redirectedArticle = g.neighbors(id, REDIRECTS_ID, Graph.EDGES_IN);
+		Objects.Iterator redirectedArticle_it = redirectedArticle.iterator();
+		while (redirectedArticle_it.hasNext())
+		{
+			long redirectedArticle_id = redirectedArticle_it.next();
+			Article a = new Article(redirectedArticle_id);
+			String tmp = a.getTitle().trim();
+			String[] split = tmp.split("\\ ");
+			if (split.length == 1)
+			{
+				synonymArticles.add(redirectedArticle_id);
+				//                  System.out.print((new Article(redirectedArticle_id)).getTitle() + ", ");
+			}
+		}
+		//System.out.println();
+		redirectedArticle_it.close();
+		redirectedArticle.close();
+
+		redirectedArticle = g.neighbors(id, REDIRECTS_ID, Graph.EDGES_OUT);
+		redirectedArticle_it = redirectedArticle.iterator();
+//            System.out.print("                redirects tipus 2 de: \"" + (new Article(id)).getTitle() + "\"");
+		while (redirectedArticle_it.hasNext())
+		{
+			long redirectedArticle_id = redirectedArticle_it.next();
+			Article a = new Article(redirectedArticle_id);
+			String tmp = a.getTitle().trim();
+			String[] split = tmp.split("\\ ");
+			if (split.length == 1)
+			{
+				synonymArticles.add(redirectedArticle_id);
+				//                  System.out.print((new Article(redirectedArticle_id)).getTitle() + ", ");
+				Objects redirectedArticle2 = g.neighbors(redirectedArticle_id, REDIRECTS_ID, Graph.EDGES_IN);
+				Objects.Iterator redirectedArticle_it2 = redirectedArticle2.iterator();
+				while (redirectedArticle_it2.hasNext())
+				{
+					long redirectedArticle_id2 = redirectedArticle_it2.next();
+
+					a = new Article(redirectedArticle_id2);
+					tmp = a.getTitle().trim();
+					split = tmp.split("\\ ");
+					if (split.length == 1)
+					{
+//                            System.out.print((new Article(redirectedArticle_id2)).getTitle() + ", ");
+						synonymArticles.add(redirectedArticle_id2);
+					}
+				}
+				redirectedArticle_it2.close();
+				redirectedArticle2.close();
+			}
+		}
+		//          System.out.println();
+		redirectedArticle.close();
+		redirectedArticle_it.close();
+	}
+	articlesToAnalyze_it.close();
+
+	articlesToAnalyze.close();
+	Objects newTokens = g.neighbors(synonymArticles, ARTICLE_TITLE_TOKENS_ID, Graph.EDGES_OUT);
+	synonymArticles.close();
+	newTokens.remove(t.getId());
+
+	Objects.Iterator newTokens_it = newTokens.iterator();
+	while (newTokens_it.hasNext())
+	{
+		result.add(new Token(newTokens_it.next()));
+	}
+	newTokens_it.close();
+	newTokens.close();
+	return result;
+
+}
+
+static public List<Integer> getEdges()
+{
+	List<Integer> ret = new ArrayList<Integer>();
+	if (REDIRECTS_ID != Graph.INVALID_EDGE)
+	{
+		ret.add(REDIRECTS_ID);
+	}
+	if (LINKS_ID != Graph.INVALID_EDGE)
+	{
+//				System.out.println("Article: " + CLASS_ID + "links: " + LINKS_ID);
+		ret.add(LINKS_ID);
+	}
+	if (BELONGS_ID != Graph.INVALID_EDGE)
+	{
+		ret.add(BELONGS_ID);
+	}
+	/*
+	 {
+	 REDIRECTS_ID, LINKS_ID, BELONGS_ID,
+	 };*/
+	return ret;
+}
+
+static public Integer getType_()
+{
+	return CLASS_ID; //To change body of generated methods, choose Tools | Templates.
+}
+
+static public int getRedirectionEdgeType()
+{
+	return REDIRECTS_ID;
+}
+
+static public boolean areNeighbors(Long oid1, Long oid2)
+{
+
+	Graph g = DexUtil.getDBGraph();
+
+	boolean result = false;
+	result |= g.findEdge(oid1, oid2, LINKS_ID) != Graph.INVALID_EDGE;
+	result |= g.findEdge(oid2, oid1, LINKS_ID) != Graph.INVALID_EDGE;
+	result |= g.findEdge(oid1, oid2, REDIRECTS_ID) != Graph.INVALID_EDGE;
+	result |= g.findEdge(oid2, oid1, REDIRECTS_ID) != Graph.INVALID_EDGE;
+	result |= g.findEdge(oid1, oid2, BELONGS_ID) != Graph.INVALID_EDGE;
+
+	return result;
+}
+
+static public Set<Article> getRedirections(Article article)
+{
+	Set<Article> articles = new HashSet<Article>();
+	articles.add(article);
+	return getRedirections(articles);
+
+}
+
+static public Set<Article> getRedirections(Set<Article> articles)
+{
+	Graph g = DexUtil.getDBGraph();
+	Objects redirections = new Objects(g.getSession());
+	Set<Article> result = new HashSet<>();
+
+	for (Article article : articles)
+	{
+		/*
+		 Objects explode = g.explode(article.getId(), REDIRECTS_ID, Graph.EDGES_IN);
+		 System.out.println("Article.java \"" + article.getTitle() + "\"(" + article.id + ")has " + explode.size() + " in redirections");
+		 Objects explode1 = g.explode(article.getId(), REDIRECTS_ID, Graph.EDGES_OUT);
+		 System.out.println("Article.java \"" + article.getTitle() + "\"(" + article.id + ")has " + explode1.size() + " out redirections");
+		 */
+		Objects neighbors = g.neighbors(article.getId(), REDIRECTS_ID, Graph.EDGES_BOTH);
+//		System.out.println("Article.java \"" + article.getTitle() + "\"(" + article.id + ")has " + neighbors.size() + " both redirections");
+		redirections.addAll(neighbors);
+		neighbors.close();
+		/*
+		 Objects neighbors2 = g.neighbors(article.getId(), LINKS_ID, Graph.EDGES_BOTH);
+		 System.out.println("Article.java \"" + article.getTitle() + "\"(" + article.id + ")has " + neighbors2.size() + " both links");
+		 */
+	}
+
+	Objects.Iterator redictectios_it = redirections.iterator();
+	while (redictectios_it.hasNext())
+	{
+		long oid = redictectios_it.next();
+		Article art = new Article(oid);
+		art.setObjectIdentifier(oid);
+		result.add(art);
+	}
+	redictectios_it.close();
+	redirections.close();
+	return result;
+}
+
+static public Set<Long> getRedirections(Long articleID)
+{
+	Graph dbg = DexUtil.getDBGraph();
+	Objects redirections = new Objects(dbg.getSession());
+	Set<Long> result;
+
+	Set<Article> articles = new HashSet<>();
+	articles.add(new Article(articleID));
+
+	for (Article article : articles)
+	{
+		Objects neighbors = dbg.neighbors(article.getId(), REDIRECTS_ID, Graph.EDGES_BOTH);
+		redirections.addAll(neighbors);
+		neighbors.close();
+	}
+	result = new HashSet<>(redirections);
+	redirections.close();
+	return result;
+}
+
+public static Map<Article, Double> getArticlesFromSet(Map<Long, Double> ids)
+{
+	Map<Article, Double> result = new HashMap<>();
+	for (Map.Entry<Long, Double> e : ids.entrySet())
+	{
+		result.put(new Article(e.getKey()), e.getValue());
+	}
+	result = MapUtils.sortByValue(result);
+	return result;
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[Article.java]: " + string);
+}
+
+public static boolean isARedirect(Long articleID)
+{
+	Graph g = DexUtil.getDBGraph();
+	Objects o = g.explode(articleID, LINKS_ID, Graph.EDGES_BOTH);
+	boolean res;
+	if (o.isEmpty())
+	{
+		res = true;
+	} else
+	{
+		res = false;
+	}
+	o.close();
+	return res;
+
+}
+
+public static Set<Long> getCategories(Long articleId)
+{
+	Set<Long> articles = new HashSet();
+	articles.add(articleId);
+
+	return getCategories(articles);
+}
+
+public static Set<Long> getCategories(Set<Long> articleSets)
+{
+	Graph g = DexUtil.getDBGraph();
+	Objects articles = new Objects(g.getSession());
+
+	for (Long id : articleSets)
+	{
+		articles.add(id);
+	}
+
+	Objects categories = g.neighbors(articles, BELONGS_ID, Graph.EDGES_BOTH);
+	articles.close();
+
+	Set<Long> result = new HashSet<>(categories);
+	categories.close();
+	return result;
+
+}
+
+public static boolean isEntity(String title)
+{
+
+	Article article = new Article(title);
+	boolean result = article.id != null;
+	//println(("Is \"" + title + "\" an entity = " + result));
+	return result && !isDesambiguationArticle(article);
+
+}
+
+public static boolean isDesambiguationArticle(Article article)
+{
+	/*Set<Long> categories = getCategories(article.id);
+	 for(Long id: categories)
+	 {
+	 Category c = new Category(id);
+	 //println("Category name of \""+article+"\":" +c.getName());
+	 }*/
+
+//	System.out.println("X- "+article.getTitle()+".contains(disambiguation)= "+article.getTitle().contains("disambiguation"));
+	return false;
+}
+
+public static Article getEntity(Article article)
+{
+	Graph g = DexUtil.getDBGraph();
+
+	long id = article.id;
+
+	Objects redirect = g.neighbors(id, REDIRECTS_ID, Graph.EDGES_OUT);
+	if (!redirect.isEmpty())
+		id = redirect.first();
+	redirect.close();
+
+	Article a = new Article(id);
+
+	//println("Original article: \""+title+"\", correct article: \""+a.getTitle()+"\"");
+	return a;
+}
+
+public static String getEntity(String title)
+{
+	Graph g = DexUtil.getDBGraph();
+
+	Article article = new Article(title);
+
+	long id = article.id;
+
+	Objects redirect = g.neighbors(id, REDIRECTS_ID, Graph.EDGES_OUT);
+	if (!redirect.isEmpty())
+		id = redirect.first();
+	redirect.close();
+
+	Article a = new Article(id);
+
+	println("Original article: \"" + title + "\", correct article: \"" + a.getTitle() + "\"");
+	return a.getTitle().trim();
+}
+
+public static Set<String> getSynonymsThroughArticles(String tokenWord)
+{
+	Token t = new Token(tokenWord);
+
+	Set<String> result = new HashSet<>();
+	result.add(tokenWord);
+	if (t.getId() == null)
+	{
+
+		return result;
+	} else
+	{
+		Article a = new Article(t.getName());
+		if (a.getId() == null)
+			return result;
+		else
+		{
+			Set<Article> redirections = getWholeRedirectionsSet(a);
+			for (Article article : redirections)
+			{
+				String title = article.getTitle().trim();
+				String[] words = title.split("\\ ");
+				if (words.length == 1)
+					result.add(title);
+			}
+		}
+		/*Set<Token> synonymsThroughArticles = getSynonymsThroughArticles(t);
+		 for (Token token : synonymsThroughArticles)
+		 {
+		 result.add(token.getName());
+		 }*/
+	}
+	return result;
+
+}
+
+public static Set<Article> getWholeRedirectionsSet(Article a)
+{
+	Set<Article> redirections = new HashSet<>();
+	Set<Article> redirections2 = getRedirections(a);
+//	println("Redirections of: \"" + a.getTitle() + "\": " + redirections2);
+	redirections.addAll(redirections2);
+	for (Article a2 : redirections2)
+	{
+//		println("		redirections of: \"" + a2.getTitle() + "\": " + getRedirections(a2));
+		redirections.addAll(getRedirections(a2));
+	}
+	return redirections;
+}
+
+public static Set<String> getSynonymsThroughArticles2(String tokenWord)
+{
+	Token t = new Token(tokenWord);
+
+	Set<String> result = new HashSet<>();
+	if (t.getId() == null)
+	{
+		result.add(tokenWord);
+		return result;
+	} else
+	{
+		Set<Token> synonymsThroughArticles = getSynonymsThroughArticles(t);
+		for (Token token : synonymsThroughArticles)
+		{
+			result.add(token.getName());
+		}
+	}
+	return result;
+
+}
+
+public static Set<String> getTitles(Set<Article> articles)
+{
+	Set<String> titles = new HashSet<>();
+	for (Article a : articles)
+	{
+		String title = a.getTitle();
+		title = title.replaceAll("\\P{Print}", "");
+		if (!"".equals(title))
+			titles.add(a.getTitle());
+	}
+	return titles;
+}
+
+private long desambiguateArticle(Objects select)
+{
+	long maxNeighbors = -1;
+	long selectedId = -1;
+	for (long id : select)
+	{
+		Objects linkedArticles = getLinkedArticles(id);
+		if (linkedArticles.size() > maxNeighbors)
+		{
+			maxNeighbors = linkedArticles.size();
+			selectedId = id;
+		}
+
+	}
+
+	return selectedId;
+}
+
+private Objects getLinkedArticles(long id)
+{
+	return g.neighbors(id, LINKS_ID, Graph.EDGES_BOTH);
+
+}
+
+static boolean isAmbiguos(String title)
+{
+	long findAttribute = g.findAttribute(CLASS_ID, "title");
+	Objects select = g.select(findAttribute, Graph.OPERATION_EQ, new Value(title));
+	int size = select.size();
+	select.close();
+	return size > 1;
+}
+
+static SortedSet<Long> getArticlesByTitle(String title)
+{
+	SortedSet<Long> articles = new TreeSet<>();
+	long findAttribute = g.findAttribute(CLASS_ID, "title");
+	Objects select = g.select(findAttribute, Graph.OPERATION_EQ, new Value(title));
+	for (Long id : select)
+	{
+		articles.add(id);
+	}
+	select.close();
+	return articles;
+
+}
+
+static SortedSet<Long> supressRedirectArticles(SortedSet<Long> articles)
+{
+	SortedSet<Long> articlesResults = new TreeSet<>();
+	for (Long id : articles)
+	{
+		Objects redirects = g.neighbors(id, REDIRECTS_ID, Graph.EDGES_OUT);
+		if (!redirects.isEmpty())
+		{
+			if (redirects.size() > 1)
+				println("Houston: we have a problem. No hi hauria més d'un element...");
+			articlesResults.add(redirects.first());
+		} else
+			articlesResults.add(id);
+		redirects.close();
+
+	}
+	return articlesResults;
+
+}
+}

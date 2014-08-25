@@ -1,0 +1,114 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package pipelines;
+
+import configurations.Configuration;
+import configurations.Configuration.EXPANSION_BLOCK;
+import static configurations.Configuration.EXPANSION_BLOCK.*;
+import expansionBlocks.EvalResults;
+import expansionBlocks.ExecuteQuery;
+import expansionBlocks.IdentifyEntities;
+import expansionBlocks.MultipleEntityQueryExpansion;
+import expansionBlocks.QueryPreProcess;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import model.Query;
+import static pipelines.PipelineChooser.readQueries;
+import utils.TimeCalculator;
+
+/**
+ *
+ * @author joan
+ */
+public class MultipleEntityQueryExpansionPipeline extends PipelineChooser
+{
+
+static void execute(Configuration configuration) throws Exception
+{
+	EXPANSION_BLOCK startPoint = configuration.getStartPoint();
+	EXPANSION_BLOCK endPoint = configuration.getEndPoint();
+	EXPANSION_BLOCK currentPoint;
+
+	SortedSet<Query> queries = null;
+	StringBuilder sb = new StringBuilder();
+	TimeCalculator tc = new TimeCalculator();
+
+	if (startPoint != READ_QUERIES)
+	{
+		tc.insert(DESERIALIZE, System.currentTimeMillis());
+		queries = new TreeSet(Query.deserialize(configuration));
+		tc.insert(DESERIALIZE, System.currentTimeMillis());
+	}
+
+	
+
+	switch (startPoint)
+	{
+
+		case READ_QUERIES:
+			currentPoint = READ_QUERIES;
+			tc.insert(currentPoint, System.currentTimeMillis());
+			queries = new TreeSet(readQueries(configuration));
+			tc.insert(currentPoint, System.currentTimeMillis());
+			Query.serialize(configuration, queries);
+			if (endPoint == currentPoint)
+				break;
+		case QUERY_PREPROCESS:
+			currentPoint = QUERY_PREPROCESS;
+			tc.insert(currentPoint, System.currentTimeMillis());
+			TimeCalculator Query_Preprocess_TC = QueryPreProcess.execute(configuration, queries);
+			tc.insert(currentPoint, System.currentTimeMillis());
+			tc.insert(currentPoint, Query_Preprocess_TC);
+			Query.serialize(configuration, queries);
+			if (endPoint == currentPoint)
+				break;
+		case IDENTIFY_ENTITIES:
+			currentPoint = IDENTIFY_ENTITIES;
+			tc.insert(currentPoint, System.currentTimeMillis());
+			TimeCalculator Identify_Entities_TC = IdentifyEntities.execute(configuration, queries);
+			tc.insert(currentPoint, System.currentTimeMillis());
+			tc.insert(currentPoint, Identify_Entities_TC);
+			Query.serialize(configuration, queries);
+			if (endPoint == currentPoint)
+				break;
+		case MULTIPLE_ENTITY_QUERY_EXPANSION:
+			currentPoint = MULTIPLE_ENTITY_QUERY_EXPANSION;
+			tc.insert(currentPoint, System.currentTimeMillis());
+			TimeCalculator Multiple_Entity_Query_Expansion_TC = MultipleEntityQueryExpansion.execute(configuration, queries);
+			tc.aggregatetimeCalculatorPerQuery(Multiple_Entity_Query_Expansion_TC.getTimeCalculatorPerQuery());
+			tc.insert(currentPoint, System.currentTimeMillis());
+			Query.serialize(configuration, queries);
+			if (endPoint == currentPoint)
+				break;
+
+		case EXECUTE_QUERY:
+			currentPoint = EXECUTE_QUERY;
+			tc.insert(currentPoint, System.currentTimeMillis());
+			TimeCalculator Execute_Query_TC = ExecuteQuery.execute(configuration, queries);
+			tc.insert(currentPoint, System.currentTimeMillis());
+			tc.insert(currentPoint, Execute_Query_TC);
+			Query.serialize(configuration, queries);
+			if (endPoint == currentPoint)
+				break;
+
+		case EVAL_RESULTS:
+			currentPoint = EVAL_RESULTS;
+			tc.insert(currentPoint, System.currentTimeMillis());
+			EvalResults.execute(configuration, queries);
+			tc.insert(currentPoint, System.currentTimeMillis());
+			Query.serialize(configuration, queries);
+			if (endPoint == currentPoint)
+				break;
+
+	}
+
+	tc.insert(SERIALIZE, System.currentTimeMillis());
+	Query.serialize(configuration, queries);
+	tc.insert(SERIALIZE, System.currentTimeMillis());
+
+	tc.print(queries.size());
+}
+}

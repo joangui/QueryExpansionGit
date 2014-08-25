@@ -1,0 +1,210 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package model;
+
+import Strings.StringUtils;
+import configurations.Configuration;
+import edu.upc.dama.dex.bean.EntityBean;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import utils.TokenFilter;
+
+/**
+ *
+ * @author joan
+ */
+public class Entity extends EntityBean implements Comparable<Entity>
+{
+
+Long id;
+String name;
+Article mainArticle;
+Set<String> otherNames;
+Set<Article> otherArticles;
+boolean ambiguous = false;
+private String userName = null;
+boolean isStopWord = false;
+
+public Entity(Long id)
+{
+	this.id = id;
+	mainArticle = new Article(id);
+	this.setObjectIdentifier(id);
+}
+
+/*public Entity(Article article)
+ {
+ mainArticle = Article.getEntity(article);
+ this.id = mainArticle.getId();
+ this.setObjectIdentifier(id);
+ name = null;
+ otherNames = null;
+ otherArticles = null;
+ }*/
+public Entity(String name)
+{
+	this.userName = name;
+	SortedSet<Long> articles = Article.getArticlesByTitle(name);
+	if (articles.size() > 1)
+	{
+		articles = Article.supressRedirectArticles(articles);
+	}
+
+	if (articles.size() > 1)
+	{
+		println("\"" + name + "\" is an ambigous entity");
+		this.mainArticle = null;
+		this.name = name;
+		this.ambiguous = true;
+	} else
+	{
+		mainArticle = Article.getEntity(new Article(articles.first()));// new Article. Article(articles.first());
+		this.name = mainArticle.getTitle();
+	}
+	this.id = Article.getEntity(new Article(articles.first())).getId();
+	this.setObjectIdentifier(id);
+	this.otherNames = null;
+	this.otherArticles = null;
+
+	println("Entity name for \"" + name + ": \"" + this.name + "\"[" + this.id + "]");
+}
+
+public String getName()
+{
+	if (name != null)
+		return name;
+	return mainArticle.getTitle();
+}
+
+public Set<String> getEntityNames()
+{
+	if (otherNames != null)
+		return otherNames;
+	else
+	{
+		this.otherArticles = new HashSet<>();
+		Set<Article> redirections = Article.getWholeRedirectionsSet(this.mainArticle);
+		redirections.add(this.mainArticle);
+		for (Article a2 : redirections)
+		{
+			if (!Article.isDesambiguationArticle(a2))
+				this.otherArticles.add(a2);
+			else
+				println("Refusing \"" + a2.getTitle() + "\"");
+		}
+		this.otherNames = Article.getTitles(otherArticles);
+		this.otherNames.add(getName());
+	}
+
+	return otherNames;
+}
+
+@Override
+public String toString()
+{
+	String conditions="";
+	if (ambiguous)
+		conditions += "*";
+	return getName()+conditions;
+}
+
+public Long getId()
+{
+	return id;
+}
+
+public boolean isAmbiguous()
+{
+	return ambiguous;
+}
+
+public void desambiguation(Set<Entity> entitySet)
+{
+	SortedSet<Entity> possibleEntities = new TreeSet<>();
+	boolean desambiguationEntity;
+	Entity entityTMP;
+	for (Entity entity : entitySet)
+	{
+		Set<String> entityNames = entity.getEntityNames();
+
+		desambiguationEntity = false;
+		entityTMP = null;
+
+		for (String name : entity.getEntityNames())
+		{
+			if (name.contains("disambiguation"))
+				desambiguationEntity = true;
+			name = StringUtils.removeInBrackets(name).trim();
+			if (this.name.equals(name) && !desambiguationEntity)
+			{
+//				println(entity.name);
+//				println(entity.mainArticle);
+//				println(entity.id);
+//				possibleEntities.add(entity);
+				entityTMP = entity;
+			}
+		}
+		if (entityTMP != null && !desambiguationEntity)
+			possibleEntities.add(entityTMP);
+
+	}
+	if (possibleEntities.size() == 1)
+	{
+		Entity first = possibleEntities.first();
+		this.id = first.id;
+		mainArticle = new Article(first.id);
+		this.setObjectIdentifier(first.id);
+		ambiguous = false;
+		println("Entity \"" + name + "\", ambiguouty resolved: " + first.getName());
+	} else
+	{
+		println("Entity \"" + name + "\" is still ambiguous: " + possibleEntities);
+		otherNames = new HashSet<>();
+	}
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[Entity.java]: " + string);
+}
+
+@Override
+public int compareTo(Entity o)
+{
+	Long id1 = this.id;
+	Long id2 = o.id;
+	return (int) (id1 - id2);
+}
+
+public String getUserName()
+{
+	if (userName == null)
+		return getName();
+	else
+		return userName;
+}
+
+public static boolean isDisambiguationEntity(Entity entity)
+{
+	return entity.getName().contains("disambiguation");
+}
+
+public boolean isStopWord(Configuration configuration) throws Exception
+{
+	Set<String> entityNames = getEntityNames();
+	boolean stopWord = false;
+	for(String entityName : entityNames)
+		stopWord |= Token.isStopWord(configuration, entityName);
+
+	for(String entityName : entityNames)
+		stopWord |= TokenFilter.isFiltered(configuration.getFilterFilePaths(),entityName);
+	return stopWord;
+	
+}
+
+}

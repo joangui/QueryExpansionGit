@@ -1,0 +1,264 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package expansionBlocks;
+
+import Parameters.Parameters;
+import configurations.Configuration;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import model.Article;
+import model.Category;
+import model.Paths;
+import model.Query;
+import model.Token;
+import pathMethods.MinimumPaths;
+
+/**
+ *
+ * @author joan
+ */
+public class SelectPaths
+{
+
+public static void execute(Configuration configuration, Set<Query> queries) throws Exception
+{
+	for (Query q : queries)
+	{
+		execute(configuration, q);
+	}
+}
+
+private static Set<Token> intersection(Set<Token> tokensForContext, Set<Token> contextTokens)
+{
+	
+	Set<Token> output = new HashSet<>();
+	for (Token token : tokensForContext)
+	{
+		println("Is "+ token + " in "+ contextTokens+"?");
+				
+		if (contextTokens.contains(token))
+		{
+		println("						yes");
+			output.add(token);
+		}
+		else 
+		println("						no");
+	}
+return output;
+}
+
+public enum PATH_REDUCTION_METHOD
+{
+
+NONE, INDRI_BASED_REDUCTION, INTERSECTION_BASED_REDUCTION
+}
+
+public static Paths execute(Configuration configuration, Query query) throws Exception
+{
+	Paths paths = query.getPaths();
+	paths = removeOnlyOneArticlePath(paths);
+//	paths = removeDuplicatedPaths(paths);
+	int intialNumberOfPaths = paths.size();
+	//if (prm != PATH_REDUCTION_METHOD.NONE)
+	{
+		//	println("Using " + prm + " to reduce the number of paths");
+
+		paths = filterPaths(configuration, paths, query.getContextTokens(), query.getEasyExpandedInputTokens(configuration));
+		/*if (EXTREME_REDUCTION != -1 && paths.size() > EXTREME_REDUCTION)
+		 {
+		 paths = extremeFilter(paths, EXTREME_REDUCTION);
+		 }
+		 */
+		int finalNumberOfPaths = paths.size();
+		println("The number of paths has been reduced from " + intialNumberOfPaths + " to " + finalNumberOfPaths + ".");
+	}
+	println("Selected Paths:");
+	for (int i = 0; i < paths.size(); i++)
+	{
+		println("	" + MinimumPaths.pathToString(paths.get(i)));
+
+	}
+	query.setSelectedPaths(paths);
+	return paths;
+}
+
+static protected Paths filterPaths(Configuration configuration, Paths paths, Set<Token> contextTokens, Set<Token> inputTokens) throws Exception
+{
+
+	println("Reduint el nombre de camins");
+
+	paths = getMostRankedPaths(configuration, paths, contextTokens, inputTokens);
+
+	return paths;
+}
+
+static private Paths getMostRankedPaths(Configuration configuration, Paths paths, Set<Token> contextTokens, Set<Token> userTokens) throws Exception
+{
+	Map<Double, Paths> rankedPaths = new HashMap<>();
+	Paths selectedPaths = new Paths();
+	double ranking = 0;
+	List<Double> ranks = new ArrayList<>();
+
+	for (int i = 0; i < paths.size(); i++)
+	{
+		Set<Long> path = paths.get(i);
+
+		Double localRanking = calculatePathQuality(configuration, path, contextTokens, userTokens);
+		//if (path.contains(260070) && path.contains(357611))
+
+		Paths localRankingList = rankedPaths.get(localRanking);
+		if (localRankingList == null)
+		{
+			ranks.add(localRanking);
+			localRankingList = new Paths();
+		}
+		localRankingList.add(path);
+		rankedPaths.put(localRanking, localRankingList);
+
+		if (localRanking == ranking)
+		{
+			selectedPaths.add(path);
+		} else if (localRanking > ranking)
+		{
+			ranking = localRanking;
+			selectedPaths = new Paths();
+			selectedPaths.add(path);
+		}
+	}
+	println("Best ranking achived for the paths is: " + ranking);
+
+	return selectedPaths;
+}
+
+static private double calculatePathQuality(Configuration configuration, Set<Long> path, Set<Token> contextTokens, Set<Token> userTokens) throws Exception
+{
+
+//	println("Context Tokens: " + contextTokens);
+//	println("User Tokens: " + userTokens);
+
+	Category c = null;
+	String string = null;
+	double localCounter = 0;
+	for (Long id : path)
+	{
+
+		Integer count1 = null;
+		Integer count2 = null;
+
+		Article a = new Article(id);
+		if (a.getId() == null)
+		{
+			c = new Category(id);
+		}
+		if (a.getId() != null) //És un article
+		{
+			string = a.getTitle();
+
+		} else //És una categoria
+		{
+			string = c.getName();
+
+		}
+
+		Set<Token> tokensForContext = Token.tokenize(string, configuration.getLanguage(), true);
+		Set<Token> tokensForInput = new HashSet<>(tokensForContext);
+
+//		tokensForContext.retainAll(contextTokens);
+		tokensForContext = intersection(tokensForContext, contextTokens);
+		count1 = tokensForContext.size();
+
+//		tokensForInput.retainAll(userTokens);
+		tokensForInput = intersection(tokensForInput, userTokens);
+		count2 = tokensForInput.size();
+
+//		println("		\"" + string + "\"" + Token.tokenize(string, configuration.getLanguage(), true) + " value is: " + count1 + " " + tokensForContext + " from context pow and " + count2 + " " + tokensForInput + " from input pow");
+
+		/*
+		 if (configuration.getParameters().readBoolean(false, "EXTRA_PATHS"))
+		 {
+		 if (configuration.getParameters().readBoolean(false, "DEBUG_INFO"))
+		 {
+		 print("          \"" + string + "\"(" + count1 + ";" + count2 + ") + ");
+		 }
+		 }
+		 */
+		localCounter += count1 + count2;
+	}
+
+	return localCounter / path.size();
+}
+
+public static void main(String[] args) throws IOException, Exception
+{
+	//Query q = new Query("71", "colored Volkswagen beetles", "Volkswagen beetles in any other color, for example, red, blue, green or yellow");
+
+	Parameters parameters = new Parameters("input.cfg");
+	Configuration c = new Configuration(parameters);
+
+	Query q = Query.readQueryLine(c, "71;colored Volkswagen beetles;Volkswagen beetles in any other color, for example, red, blue, green or yellow; ; ; ; ; ; ; ; ; ; ; ; ;");
+
+	QueryPreProcess.execute(c, q);
+
+	CreatePaths.execute(c, q);
+
+	execute(c, q);
+}
+
+static protected Paths removeOnlyOneArticlePath(Paths paths)
+{
+	Paths result = new Paths();
+	for (int i = 0; i < paths.size(); i++)
+	{
+		Set<Long> path = paths.get(i);
+		if ((path.size() - numberOfCategories(path)) > 1)
+		{
+			result.add(path);
+		}
+
+	}
+	return result;
+
+}
+
+static private int numberOfCategories(Set<Long> path)
+{
+	int res = 0;
+	for (Long id : path)
+	{
+		if (Category.isCategory(id))
+		{
+			res++;
+		}
+	}
+	return res;
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[SelectPaths.java]: " + string);
+}
+
+private static void println()
+{
+	System.out.println("	[SelectPaths.java]: ");
+}
+
+private static void print(Object string)
+{
+	System.out.print("	[SelectPaths.java]: " + string);
+}
+
+private static void print()
+{
+	System.out.print("	[SelectPaths.java]: ");
+}
+
+}

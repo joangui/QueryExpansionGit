@@ -1,0 +1,177 @@
+/*
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package utils;
+
+import DEFS.Definitions;
+import FileManagement.ReadFiles;
+import Strings.Tokenize.Tokenizer;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import model.Token;
+
+/**
+ *
+ * @author joan
+ */
+public class TokenFilter {
+
+//private static Set<String> colors=new HashSet(Arrays.asList("color","black","gray","grey","white","red","orange","yellow","green","blue","purple","brown","magenta","cyan","olive","maroon","navy","aquamarine","turquoise","lime","teal","indigo","violet","pink"));
+/*private static Set<String> colors = new HashSet(loadFilter("filters/colors.txt"));
+     private static Set<String> shapes = new HashSet(loadFilter("filters/shapes.txt"));
+     private static Set<String> positions = new HashSet(loadFilter("filters/positions.txt"));
+
+     public static Set<Token> removeColors(Set<Token> tokens)
+     {
+     Set<String> stringTokens = Token.getSetString(tokens);
+     stringTokens = new HashSet<String>(CollectionUtils.removeAll(stringTokens, colors));
+     return Token.getTokens(stringTokens);
+     }
+
+     public static Set<Token> removeShapes(Set<Token> tokens)
+     {
+     Set<String> stringTokens = Token.getSetString(tokens);
+     stringTokens = new HashSet<String>(CollectionUtils.removeAll(stringTokens, shapes));
+     return Token.getTokens(stringTokens);
+     }
+
+     public static Set<Token> removePositions(Set<Token> tokens)
+     {
+     Set<String> stringTokens = Token.getSetString(tokens);
+     stringTokens = new HashSet<String>(CollectionUtils.removeAll(stringTokens, positions));
+     return Token.getTokens(stringTokens);
+     }
+
+     public static Set<Token> removeAllFilters(Set<Token> tokens)
+     {
+     Set<String> stringTokens = Token.getSetString(tokens);
+     stringTokens = new HashSet<String>(CollectionUtils.removeAll(stringTokens, colors));
+     stringTokens = new HashSet<String>(CollectionUtils.removeAll(stringTokens, shapes));
+     stringTokens = new HashSet<String>(CollectionUtils.removeAll(stringTokens, positions));
+     return Token.getTokens(stringTokens);
+     }
+
+     */
+    static public Set<String> loadFilter(String path) {
+
+        Set<String> clrs = new HashSet<String>();
+        BufferedReader reader = null;
+        try
+        {
+            reader = ReadFiles.getReader(path);
+            String string;
+            try
+            {
+                while ((string = reader.readLine()) != null)
+                {
+                    if (!string.isEmpty())
+                    {
+                        clrs.add(string.toLowerCase().trim());
+                    }
+                }
+            } catch (IOException ex)
+            {
+                Logger.getLogger(TokenFilter.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        } catch (FileNotFoundException ex)
+        {
+            //   Logger.getLogger(TokenFilter.class.getName()).log(Level.SEVERE, null, ex);
+        } finally
+        {
+            try
+            {
+                reader.close();
+            } catch (IOException ex)
+            {
+            }
+        }
+
+        return clrs;
+
+
+    }
+
+    public static Set<Token> remove(List<String> filtersPaths, Set<Token> tokens, Definitions.LANGUAGE language) {
+        //System.out.println("Tokens: " + tokens);
+        Set<String> stringTokens = Token.getSetString(tokens);
+        //System.out.println("String tokens" + stringTokens);
+
+        if (filtersPaths != null)
+        {
+            Set<String> stopWords = new HashSet<String>();
+            for (String filterPath : filtersPaths)
+            {
+                if (filterPath != null && !filterPath.trim().isEmpty())
+                {
+                    stopWords.addAll(loadFilter(filterPath));
+                }
+            }
+
+            stringTokens.removeAll(stopWords);
+            try
+            {
+//                System.out.println("No Tokenized set: " + stringTokens);
+                Set<String> tokenizedSet = Tokenizer.getTokenizedSet(stringTokens, language, true);
+                //              System.out.println("   Tokenized set: " + tokenizedSet);
+                return Token.getTokens(tokenizedSet);
+            } catch (IOException ex)
+            {
+                Logger.getLogger(TokenFilter.class.getName()).log(Level.SEVERE, null, ex);
+            }
+
+
+        }
+        return tokens;
+    }
+
+    public static Set<String> remove(List<String> filtersPaths, List<String> tokens) {
+        //System.out.println("Tokens: " + tokens);
+        Set<String> stringTokens = new HashSet<String>(tokens);
+        //System.out.println("String tokens" + stringTokens);
+
+        if (filtersPaths != null)
+        {
+            Set<String> stopWords = new HashSet<String>();
+            for (String filterPath : filtersPaths)
+            {
+                if (filterPath != null && !filterPath.trim().isEmpty())
+                {
+                    stopWords.addAll(loadFilter(filterPath));
+                }
+            }
+
+            stringTokens.removeAll(stopWords);
+        }
+        return new HashSet<String>(stringTokens);
+    }
+
+    static boolean isFiltered(List<String> filtersPaths, String token) {
+
+        if (filtersPaths != null)
+        {
+            Set<String> stopWords = new HashSet<String>();
+            for (String filterPath : filtersPaths)
+            {
+                if (filterPath != null && !filterPath.trim().isEmpty())
+                {
+                    stopWords.addAll(loadFilter(filterPath));
+                }
+            }
+            return stopWords.contains(token);
+        }
+        return false;
+    }
+    /**
+     *
+     * @param filtersPaths
+     * @param stringTokens
+     * @return
+     */
+}

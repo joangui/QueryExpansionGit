@@ -1,0 +1,171 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package pipelines;
+
+import FileManagement.FolderNavigation;
+import configurations.Configuration;
+import expansionBlocks.IdentifyEntities;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import model.Entity;
+
+/**
+ *
+ * @author joan
+ */
+class ResultCollectionIdentifyEntities
+{
+
+static Set<Entity> removableEntities = new HashSet<>();
+static Set<String> extensions = new HashSet<>();
+
+static
+{
+	removableEntities.add(new Entity(427137L));
+	removableEntities.add(new Entity(290930L));
+	removableEntities.add(new Entity(258385L));
+	removableEntities.add(new Entity(5812718L));
+	removableEntities.add(new Entity(5811607L));
+	removableEntities.add(new Entity(282828L));
+
+	extensions.add(".gif");
+	extensions.add(".icons");
+	extensions.add(".JPEG");
+	extensions.add(".jpg");
+	extensions.add(".JPG");
+	extensions.add(".PNG");
+
+}
+
+static void execute(Configuration configuration) throws IOException, Exception
+{
+	String rootFolder = configuration.getRootFolderResCol();
+	String resultFolder = configuration.getResultFolderResCol();
+	if (resultFolder.charAt(resultFolder.length() - 1) != '/')
+		resultFolder += '/';
+
+	List<String> files = FolderNavigation.doFileFilterExtensionListing(rootFolder, "xml");
+
+	int i = 0;
+	for (String file : files)
+	{
+//		if (i > 14)
+		{
+			String resultFile = resultFolder + file.substring(file.lastIndexOf("/") + 1, file.length());
+			String extractedText = treatXMLFile(file);
+			println("Text of " + file + ": " + extractedText);
+			Set<Entity> findEntities = IdentifyEntities.findEntities(configuration, extractedText);
+			findEntities.removeAll(removableEntities);
+			println("		entities: " + findEntities);
+			printFile(resultFile, findEntities);
+		}
+
+		i++;
+		if (i == 2)
+		break;
+	}
+
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[ResultCollectionIdentifyEntities.java]: " + string);
+}
+
+static public void main(String[] argv) throws IOException, Exception
+{
+	Configuration configuration = Configuration.getConfiguration("input.cfg");
+	if (configuration == null)
+		return;
+
+	execute(configuration);
+
+}
+
+private static String treatXMLFile(String file) throws IOException
+{
+	BufferedReader reader = FileManagement.ReadFiles.getReader(file);
+	String line = "";
+	StringBuilder sb = new StringBuilder();
+	while ((line = reader.readLine()) != null)
+	{
+		line = line.trim();
+		if (!line.isEmpty())
+		{
+			for (String extension : extensions)
+			{
+				line = line.replaceAll(extension, "");
+			}
+			line = line.replaceAll("\\<.*?\\>", "").replaceAll("\\|([A-z0-9]+)\\=", " ");//.replaceAll("[^\\p{L}\\p{Z}]"," ").trim();
+			//line = removeUrl(line);
+			if (!line.isEmpty())
+				sb.append(" " + line);
+		}
+	}
+
+	reader.close();
+	return sb.toString();
+}
+
+static private String removeUrl(String commentstr)
+{
+	String urlPattern = "((https?|ftp|gopher|telnet|file|Unsure|http):((//)|(\\\\))+[\\w\\d:#@%/;$()~_?\\+-=\\\\\\.&]*)";
+	urlPattern = "\\b(https?|ftp|file)://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]";
+	urlPattern = "^(https?|ftp|file)://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]";
+	Pattern p = Pattern.compile(urlPattern, Pattern.CASE_INSENSITIVE);
+	Matcher m = p.matcher(commentstr);
+	int i = 0;
+	while (m.find())
+	{
+		commentstr = commentstr.replaceAll(m.group(i), "").trim();
+		i++;
+	}
+	return commentstr;
+}
+
+private static void printFile(String file, Set<Entity> findEntities) throws FileNotFoundException, UnsupportedEncodingException
+{
+	StringBuilder sb = new StringBuilder();
+	sb.append("<DOC>\n");
+	sb.append("<DOCNO>").append(file.substring(file.lastIndexOf("/") + 1, file.length())).append("</DOCNO>\n");
+	sb.append("<TEXT>\n");
+	for (Entity entity : findEntities)
+	{
+		boolean first = true;
+		Set<String> names = new HashSet<>();
+		for (String name : entity.getEntityNames())
+		{
+			names.add(name.replace("(", "").replace(")", "").replace("disambiguation", "").trim());
+		}
+		for (String name : names)
+		{
+			if (!first)
+				sb.append(", ");
+			sb.append(name);
+			first = false;
+		}
+		sb.append(".\n");
+	}
+	sb.append("</TEXT>\n");
+	sb.append("<DOC>");
+
+	println("\n" + sb);
+
+	PrintWriter writer = FileManagement.Writer.getWriter(file);
+	writer.print(sb);
+	writer.close();
+
+}
+
+}

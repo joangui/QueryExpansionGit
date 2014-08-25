@@ -1,0 +1,91 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package pipelines;
+
+import Parameters.Parameters;
+import configurations.Configuration;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.TreeSet;
+import model.Query;
+
+/**
+ *
+ * @author joan
+ */
+public class PipelineChooser
+{
+
+/**
+ * @param args the command line arguments
+ * @throws java.io.IOException
+ */
+public static void main(String[] args) throws IOException, Exception
+{
+
+	
+
+	Configuration configuration = Configuration.getConfiguration("input.cfg");
+	if(configuration==null) return;
+	Configuration.PIPELINE pipeline = configuration.getPipeline();
+
+	switch (pipeline)
+	{
+		case QUERY_EXPANSION:
+			QueryExpansionPipeline.execute(configuration);
+			break;
+		case MULTIPLE_ENTITY_QUERY_EXPANSION:
+			MultipleEntityQueryExpansionPipeline.execute(configuration);
+			break;
+		case ADINTON_EXPERIMENTS:
+			AdintonPipeline.execute(configuration);
+			break;
+		case ENTITY_TEST_PIPELINE:
+			EntityTestPipeLine.execute(configuration);
+
+		case HARCODED_QUERY:
+			HardcodedQueryPipeline.execute(configuration);
+
+		case COLLECTION_IDENTIFY_ENTITIES:
+			ResultCollectionIdentifyEntities.execute(configuration);
+			
+	}
+
+}
+
+protected static TreeSet<Query> readQueries(Configuration configuration) throws FileNotFoundException, IOException, Exception
+{
+	String query_file = configuration.getQUERY_FILE();
+	BufferedReader reader = FileManagement.ReadFiles.getReader(query_file);
+	String queryLine;
+	TreeSet<Query> queries = new TreeSet<>();
+	while ((queryLine = reader.readLine()) != null)
+	{
+		if (queryLine.trim().charAt(0) != '#')
+		{
+			Query q = Query.readQueryLine(configuration, queryLine);
+			if (configuration.getQueryId() == null || configuration.getQueryId().equals(q.getId()))
+			{
+				queries.add(q);
+				println(q);
+			}
+		}
+	}
+
+	return queries;
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[PipelineChooser.java]: " + string);
+}
+
+
+
+}

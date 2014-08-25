@@ -1,0 +1,114 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package expansionBlocks;
+
+import Strings.StringUtils;
+import configurations.Configuration;
+import edu.upc.dama.utils.objects.UtilsMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import model.Article;
+import model.Entity;
+import model.Query;
+import utils.StringUtilsQueryExpansion;
+import utils.TimeCalculator;
+import static configurations.Configuration.EXPANSION_BLOCK.*;
+import configurations.Configuration.EXPANSION_BLOCK;
+/**
+ *
+ * @author joan
+ */
+public class MultipleEntityQueryExpansion
+{
+public static void execute(Configuration configuration, SortedSet<Query> queries) throws Exception
+{
+	for (Query query : queries)
+	{
+		execute(configuration, query);
+	}
+}
+
+public static void execute(Configuration configuration, Query query) throws Exception
+{
+	
+	TimeCalculator tc_general = new TimeCalculator();
+	Set<Entity> inputEntities = query.getInputEntities();
+	int i = 1;
+
+	Map<Entity, Map<Entity, Double>> communities = new HashMap<>();
+
+	String RESULT_QUERY_FILE = configuration.getParameters().readString("resultQueries.xml", "RESULT_QUERY_FILE");
+	for (Entity entity : inputEntities)
+	{
+		TimeCalculator tc_query = new TimeCalculator();
+		Map<Entity, Double> topologicalCommunity = new HashMap<>();
+
+		println("Entity to be expanded : " + entity);
+		if (!entity.isStopWord(configuration.getLanguage(), configuration.getFilterFilePaths()))
+		{
+			Query newQuery = new Query(query.getId() + "_" + i, entity.getName(), query.getContext(), configuration.getLanguage());
+			newQuery.setInputEntities(entity);
+			newQuery.setContextEntities(query.getContextEntities());
+
+			configuration.setResultQueryFile("resultQuery" + query.getId() + "_" + i + ".xml");
+
+			println("Executing Query " + newQuery);
+
+			//QueryPreProcess.execute(configuration, newQuery);
+			tc_query.insert(CREATE_PATH, System.currentTimeMillis());
+			CreatePaths.execute(configuration, newQuery);
+			tc_query.insert(CREATE_PATH, System.currentTimeMillis());
+			Query.serialize(configuration, newQuery);
+
+			tc_query.insert(SELECT_PATH, System.currentTimeMillis());
+			SelectPaths.execute(configuration, newQuery);
+			tc_query.insert(SELECT_PATH, System.currentTimeMillis());
+			Query.serialize(configuration, newQuery);
+
+
+			tc_query.insert(CREATE_COMMUNITIES, System.currentTimeMillis());
+			CreateCommunitiesFromPaths.execute(configuration, newQuery);
+			tc_query.insert(CREATE_COMMUNITIES, System.currentTimeMillis());
+			Query.serialize(configuration, newQuery);
+
+			tc_query.insert(PROCESS_COMMUNITIES, System.currentTimeMillis());
+			topologicalCommunity = ProcessCommunities.execute(configuration, newQuery);
+			tc_query.insert(PROCESS_COMMUNITIES, System.currentTimeMillis());
+			Query.serialize(configuration, newQuery);
+
+			topologicalCommunity = UtilsMap.sortByValue(topologicalCommunity);
+
+
+			if (entity.isAmbiguous())
+				entity.desambiguation(topologicalCommunity.keySet());
+			Query.serialize(configuration, newQuery);
+			
+			println("Topological Query of " + newQuery.getId() + "(\""+entity+"\") :" + (StringUtilsQueryExpansion.MapDoubleValueToString(topologicalCommunity)));
+
+		} else
+			println("Not doing expansion for \"" + entity + "\" for being a filtered word.");
+		communities.put(entity, topologicalCommunity);
+
+		i++;
+		tc_general.aggregatePerBlockInformation(tc_query.getTimesPerBlock());
+	}
+
+	println("MultipleEntityQueryExpansionTimes: ");
+	tc_general.print(1);
+
+	configuration.setResultQueryFile(RESULT_QUERY_FILE);
+	query.setEntityCommunities(communities);
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[MultipleQueryExpansion.java]: " + string);
+}
+
+}

@@ -1,0 +1,270 @@
+/*
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package expansionBlocks;
+
+import Parameters.Parameters;
+import Strings.StringUtils;
+import configurations.Configuration;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import model.Article;
+import model.Category;
+import model.Query;
+import model.RelevantDocuments;
+import model.Token;
+import model.Univers;
+import pathMethods.MinimumPaths;
+import utils.IndriModule;
+
+/**
+ *
+ * @author joan
+ */
+public class CreatePaths
+{
+
+public static Set<Set<Long>> execute(Configuration configuration, Query query) throws Exception
+{
+
+	RelevantDocuments relevantDocuments = getRelevantDocuments(configuration, query);
+
+	Univers univers = generateUnivers(configuration, relevantDocuments);
+
+	Map<Article, Double> result = new HashMap<>();
+	List<Long> nodesQ = relevantDocuments.getInputIds();
+	List<Long> nodesC = relevantDocuments.getContextIds();
+	println("End nodes = " + nodesC.size());
+
+	List<Integer> catEdges = Category.getEdges();
+	List<Integer> artEdges = Article.getEdges();
+
+	List<Integer> edgesT = new ArrayList<>();
+	edgesT.addAll(catEdges);
+	edgesT.addAll(artEdges);
+	List<Integer> nodesT = new ArrayList<>();
+	nodesT.add(Article.getType_());
+	nodesT.add(Category.getType_());
+
+	List<Long> universNodes = univers.getIds();
+
+	MinimumPaths PT = new MinimumPaths(nodesQ, nodesC, universNodes, nodesT, edgesT);
+	PT.setFreeEdge(Article.getRedirectionEdgeType());
+
+	Set<Set<Long>> paths = PT.getPaths();
+
+	println("Number of calculated paths: " + paths.size());
+	query.setPaths(paths);
+	return paths;
+//	return paths2;
+}
+
+static protected RelevantDocuments getRelevantDocuments(Configuration configuration, Query query) throws Exception
+{
+	/*
+	 *****************************************************************
+	 *             MATCHING ARTICLES AND CATEOGORIES                 *
+	 *****************************************************************
+	 */
+	//if (!configuration.getForceMatchingDocuments())
+//	{
+	println(" OBTAINING MATCHING DOCUMENTS WITH INDRI");
+
+	List<String> contextList = query.getEasyExpandedContext();
+	List<String> inputList = query.getEasyExpandedInput();
+
+	println("        Obtaing relevant docs for the input with Indri");
+	Map<String, Integer> inputPages = IndriModule.getWikipediaPages(inputList, configuration.getFilterFilePaths(), configuration.getLanguage());
+	println("        Obtaing relevant docs for the context with Indri");
+	Map<String, Integer> contextPages = IndriModule.getWikipediaPages(contextList, configuration.getFilterFilePaths(), configuration.getLanguage());
+
+	Map<Category, Integer> matchingInputCategoriesMap = costructMatchingCategoriesMap(inputPages);
+	Set<Category> matchingInputCategories = matchingInputCategoriesMap.keySet();
+	Map<Article, Integer> matchingInputArticlesMap = constructMatchingArticlesMap(inputPages);
+	Set<Article> matchingInputArticles = getEntities(matchingInputArticlesMap.keySet());
+
+	Map<Category, Integer> matchingContextCategoriesMap = costructMatchingCategoriesMap(contextPages);
+	Set<Category> matchingContextCategories = matchingContextCategoriesMap.keySet();
+	Map<Article, Integer> matchingContextArticlesMap = constructMatchingArticlesMap(contextPages);
+	Set<Article> matchingContextArticles = getEntities(matchingContextArticlesMap.keySet());
+	//}
+	/*else
+	 {
+	 matchingContextCategories = categoryDAO.getCategoriesByKeywords(configuration.getMatchingContextCategories());
+	 matchingContextArticles = articleDAO.getArticlesByKeywords(configuration.getMatchingContextArticles());
+
+	 matchingInputCategories = categoryDAO.getCategoriesByKeywords(configuration.getMatchingInputCategories());
+	 matchingInputArticles = articleDAO.getArticlesByKeywords(configuration.getMatchingInputArticles());
+	 }*/
+
+	/**
+	 * **************************************************************
+	 */
+	/*   SELECTING RELEVANT ARTICLES THROUGH MATCHING ARTICLES       */
+	/**
+	 * **************************************************************
+	 */
+	Set<Category> contextRelevantCategories;
+	Set<Article> contextRelevantArticles;
+	Set<Category> inputRelevantCategories;
+	Set<Article> inputRelevantArticles;
+
+	contextRelevantCategories = matchingContextCategories;
+	contextRelevantArticles = matchingContextArticles;
+	inputRelevantCategories = matchingInputCategories;
+	inputRelevantArticles = matchingInputArticles;
+
+	if (configuration.getParameters().readBoolean(false, "DEBUG_INFO_RELEVANT_DOCS"))
+	{
+		println("=============MATCHING DOCUMENTS=================");
+		println("Matching Input:");
+		println("	*matching articles: " + matchingInputArticles);
+		println("	*matching categories: " + matchingInputCategories);
+
+		println("Mataching Context:");
+		println("	*matching articles: " + matchingContextArticles);
+		println("	*matching categories: " + matchingContextCategories);
+		println("================================================");
+		println("=============RELEVANT DOCUMENTS=================");
+		println("Relevant Input:");
+		println("	*relevant articles: " + inputRelevantArticles);
+		println("	*relevant categories: " + inputRelevantCategories);
+		println("Mataching Context:");
+		println("	*relevant articles: " + contextRelevantArticles);
+		println("	*relevant categories: " + contextRelevantCategories);
+	}
+
+	RelevantDocuments relevantDocs = new RelevantDocuments(contextRelevantCategories, contextRelevantArticles, inputRelevantCategories, inputRelevantArticles);
+	return relevantDocs;
+}
+
+static private Univers generateUnivers(Configuration configuration, RelevantDocuments relevantDocuments)
+{
+
+	Univers univers = new Univers(relevantDocuments.getArticles(), relevantDocuments.getCategories());
+	/*String universDefinition = configuration.getUniversDefinition();
+	 int hops = 1;
+	 if (universDefinition.contains("1HOP_ART"))
+	 {
+	 hops = 1;
+	 Univers universFromInputArticles = articleDAO.getNeighbors(relevantDocuments.getInputRelevantArticles(), hops);
+	 Univers universFromContextArticles = articleDAO.getNeighbors(relevantDocuments.getContextRelevantArticles(), hops);
+	 univers.fusion(universFromInputArticles);
+	 univers.fusion(universFromContextArticles);
+	 }
+	 */
+	return univers;
+}
+
+public static void main(String[] args) throws IOException, Exception
+{
+	//Query q = new Query("71", "colored Volkswagen beetles", "Volkswagen beetles in any other color, for example, red, blue, green or yellow");
+
+	Parameters parameters = new Parameters("input.cfg");
+	Configuration c = new Configuration(parameters);
+
+	Query q = Query.readQueryLine(c, "71;colored Volkswagen beetles;Volkswagen beetles in any other color, for example, red, blue, green or yellow; ; ; ; ; ; ; ; ; ; ; ; ;");
+
+	QueryPreProcess.execute(c, q);
+	Set<Token> inputTokens = q.getInputTokens();
+	println("Input tokens:" + inputTokens);
+
+	List<String> contextList = q.getEasyExpandedContext();
+	List<String> inputList = q.getEasyExpandedInput();
+
+	Set<Set<Long>> execute = execute(c, q);
+	int i = 1;
+	for (Set<Long> path : execute)
+	{
+		System.out.print(i);
+		MinimumPaths.printPath(new LinkedList<Long>(path));
+		i++;
+	}
+}
+
+static private Map<Category, Integer> costructMatchingCategoriesMap(Map<String, Integer> wikipediaPages)
+{
+	Map<Category, Integer> result = new HashMap<>();
+	for (Map.Entry<String, Integer> e : wikipediaPages.entrySet())
+	{
+		String page = e.getKey();
+		Integer w = e.getValue();
+		if (page.contains("Category:"))
+		{
+			Category c = new Category(page);
+			if (c.getId() != null)
+			{
+				result.put(c, w);
+			}
+		}
+	}
+	return result;
+}
+
+static private Map<Article, Integer> constructMatchingArticlesMap(Map<String, Integer> wikipediaPages)
+{
+	Map<Article, Integer> result = new HashMap<>();
+
+	for (Map.Entry<String, Integer> e : wikipediaPages.entrySet())
+	{
+		String page = e.getKey();
+		Integer w = e.getValue();
+		if (!page.contains("Category:"))
+		{
+			Article a = new Article(page);
+			if (a.getId() != null)
+			{
+				result.put(a, w);
+			}
+		}
+	}
+	return result;
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[CreatePaths.java]: " + string);
+}
+
+private static void println()
+{
+	System.out.println("	[CreatePaths.java]: ");
+}
+
+private static void print(Object string)
+{
+	System.out.print("	[CreatePaths.java]: " + string);
+}
+
+private static void print()
+{
+	System.out.print("	[CreatePaths.java]: ");
+}
+
+public static void execute(Configuration configuration, Set<Query> queries) throws Exception
+{
+	for (Query q : queries)
+	{
+		execute(configuration, q);
+	}
+}
+
+private static Set<Article> getEntities(Set<Article> articles)
+{
+	Set<Article> newArticlesSet = new HashSet<>();
+	for (Article a : articles)
+	{
+		Article entity = Article.getEntity(a);
+		newArticlesSet.add(entity);
+	}
+	return newArticlesSet;
+}
+
+}

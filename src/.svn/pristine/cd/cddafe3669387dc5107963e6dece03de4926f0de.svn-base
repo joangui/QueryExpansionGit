@@ -1,0 +1,59 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package pipelines;
+
+import DEFS.Definitions;
+import configurations.Configuration;
+import expansionBlocks.EvalResults;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import model.Query;
+import utils.IndriModule;
+
+/**
+ *
+ * @author joan
+ */
+public class HardcodedQueryPipeline
+{
+
+static void execute(Configuration configuration) throws Exception
+{
+	Query q = new Query("113", "map of europe", "", Definitions.LANGUAGE.CATALAN);
+//	Query q = new Query("80", "wolf close up", "", Definitions.LANGUAGE.CATALAN);
+//	String indriQuery = readIndriQuery("resultQuery80_indri.txt");
+	String indriQuery = readIndriQuery("plainTopologicalQuery113_1.txt");
+	q.setTopologicalIndriQuery(indriQuery);
+
+	Map<String, Double> videos = IndriModule.getVideos(configuration, q, indriQuery);
+	q.setResult(videos);
+	Set<Query> queries = new HashSet<>();
+	queries.add(q);
+	EvalResults.execute(configuration, queries);
+
+}
+
+private static String readIndriQuery(String file ) throws FileNotFoundException, IOException
+{
+	BufferedReader reader = FileManagement.ReadFiles.getReader(file);
+	StringBuilder sb = new StringBuilder();
+
+	String s; 
+	while ((s=reader.readLine())!=null)
+	{
+		if(!s.trim().isEmpty()&&s.trim().charAt(0)!='%')
+		sb.append(s.trim());
+	}
+	
+	return sb.toString().trim();
+	
+}
+
+}

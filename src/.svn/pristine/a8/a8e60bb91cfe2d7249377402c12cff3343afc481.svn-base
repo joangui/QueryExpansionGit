@@ -1,0 +1,377 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package expansionBlocks;
+
+import FileManagement.Writer;
+import Strings.StringUtils;
+import Structures.MapUtils;
+import Structures.Triplet;
+import configurations.Configuration;
+import java.io.BufferedReader;
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import javax.xml.parsers.ParserConfigurationException;
+import model.Query;
+import org.xml.sax.SAXException;
+
+/**
+ *
+ * @author joan
+ */
+public class EvalResults
+{
+
+public static void execute(Configuration configuration, Set<Query> queries) throws FileNotFoundException, UnsupportedEncodingException, IOException, ParserConfigurationException, SAXException
+{
+
+	personalizedEvalMethod(configuration, queries);
+	trecEvalMethod(configuration, queries);
+}
+
+private static HashMap<String, HashMap<String, Integer>> loadResults(Configuration configuration) throws FileNotFoundException, IOException
+{
+	HashMap<String, HashMap<String, Integer>> correctResults = new HashMap<>();
+
+	String resultsFile = configuration.getQRELFile();
+	// println("resultsFile = "+ resultsFile);
+	FileInputStream fstream = new FileInputStream(resultsFile);
+	DataInputStream in = new DataInputStream(fstream);
+	BufferedReader br = new BufferedReader(new InputStreamReader(in));
+	String strLine;
+
+	while ((strLine = br.readLine()) != null)
+	{
+		String[] values = strLine.split(" ");
+		String query_id = values[0];
+		String image_id = values[2];
+		String eval = values[3];
+
+		HashMap<String, Integer> evalHash = correctResults.get(query_id);
+		if (evalHash == null)
+		{
+			evalHash = new HashMap<>();
+		}
+		evalHash.put(image_id, new Integer(eval));
+		correctResults.put(query_id, evalHash);
+	}
+
+	return correctResults;
+}
+
+static protected String getID(Configuration configuration, String title)
+{
+
+	switch (configuration.getTrecTest())
+	{
+		case WEBCLEF:
+		case WEBCLEF_ENTITIFIED:
+			if (title.contains("[") && title.contains("]"))
+			{
+				title = title.substring(title.indexOf("[") + 1, title.indexOf("]"));
+			}
+			break;
+		case DISK12:
+		case DISK45:
+			if (title.contains("|"))
+			{
+				title = title.split("\\|")[1];
+				title = title.trim();
+			}
+
+	}
+	return title;
+
+}
+
+private static void personalizedEvalMethod(Configuration configuration, Set<Query> queries) throws FileNotFoundException, UnsupportedEncodingException, IOException
+{
+	String resultsFile = configuration.getResults();
+	PrintWriter resultsFileOutput = new PrintWriter(resultsFile, "UTF-8");
+
+	HashMap<String, HashMap<String, Integer>> correctResults = loadResults(configuration);
+
+	List<String> resultsConfigStr = configuration.getResultConfiguration();
+	LinkedList<Integer> resultsConfig = new LinkedList<>();
+
+	System.out.print("ID");
+	resultsFileOutput.print("ID");
+	for (String s : resultsConfigStr)
+	{
+		resultsConfig.add(new Integer(s));
+
+		{
+			System.out.print("&P@" + s + "||");
+			resultsFileOutput.print("&P@" + s + "||");
+
+		}
+	}
+	println("");
+	resultsFileOutput.println("");
+
+	System.out.print("|");
+	resultsFileOutput.print("|");
+	for (String s : resultsConfigStr)
+	{
+		System.out.print("recall;precision;f|");
+		resultsFileOutput.print("recall;precision;f|");
+
+	}
+	println("");
+	resultsFileOutput.println("");
+	Collections.sort(resultsConfig);
+
+	List<Triplet> averageStatistics = new LinkedList<>();
+	for (Integer i : resultsConfig)
+	{
+		Triplet<Double, Double, Double> tmp = new Triplet<>(0.0, 0.0, 0.0);
+		averageStatistics.add(tmp);
+	}
+	HashMap<String, HashMap<Integer, Triplet<Double, Double, Double>>> statistics = new HashMap<>();
+	for (Query query : queries)
+	{
+		String query_id = query.getId();
+		if (query_id.charAt(0) == '0')
+		{
+			query_id = query_id.substring(1);
+		}
+		String imagesResultsFile = ("imagesResults_" + query_id + ".txt");
+		PrintWriter imageResultsFileOutput = new PrintWriter(imagesResultsFile, "UTF-8");
+		System.out.print(query_id + "|");
+		resultsFileOutput.print(query_id + "|");
+		boolean continueAnalyzingResults = true;
+		int index = 0;
+
+		List<String> results = new ArrayList<>();
+		Map<String, Double> result = query.getResult();
+		for (Map.Entry<String, Double> e : result.entrySet())
+		{
+			results.add(e.getKey());
+		}
+
+	//	List<String> results = new ArrayList<>(query.getResult().keySet());
+		//	Map<String, Double> result = query.getResult();
+		/*if (results == null)
+		 {
+		 results = new ArrayList<>();
+		 }*/
+		while (results.size() < 150)
+		{
+			results.add("-1");
+		}
+		HashMap<Integer, Triplet<Double, Double, Double>> query_id_statistics = new HashMap<>();
+
+		double relevantDocs = 0.0;
+		HashMap<String, Integer> knownResults = correctResults.get(query_id);
+		List<String> missingImages = new LinkedList<>();
+		for (Map.Entry<String, Integer> p : knownResults.entrySet())
+		{
+			relevantDocs += p.getValue();
+			if (p.getValue() >= 1)
+			{
+				missingImages.add(p.getKey());
+			}
+		}
+		//System.err.println("relevantDocs="+relevantDocs);
+		imageResultsFileOutput.println("#NUMBER OF RELEVANT IMAGES FOR THIS QUERY: " + relevantDocs);
+		int i = 0;
+		double relevantAndRetrieved = 0.0;
+		while (continueAnalyzingResults && i < results.size())
+		{
+			String result_id = getID(configuration, results.get(i));
+			Double weight = result.get(results.get(i));
+			String doubleString = weight==null? "":StringUtils.decimalFormat(weight, 3)+" : "; 
+			imageResultsFileOutput.print( doubleString+ "" + results.get(i));
+			//imageResultsFileOutput.print(results.get(i));
+			if (knownResults.containsKey(result_id))
+			{
+				if (knownResults.get(result_id) >= 1)
+				{
+					imageResultsFileOutput.print(": CORRECT!");
+					missingImages.remove(result_id);
+				}
+				if (knownResults.get(result_id) >= 1)
+					relevantAndRetrieved++;
+
+			}
+			imageResultsFileOutput.println();
+			i++;
+
+			double recall = relevantAndRetrieved / relevantDocs;
+			//println(i+":("+recall+") recall*100="+((int)(recall*10)*10+ " i resultsConfig[i]="+resultsConfig.get(index) + ((!RESPECT_TO_RECALL && i == resultsConfig.get(index))||(RESPECT_TO_RECALL&&((int)recall*100==resultsConfig.get(index))))));
+			if ((i == resultsConfig.get(index)))//|| (((int) (recall * 10)) * 10 == resultsConfig.get(index)))
+			{
+				double precision = relevantAndRetrieved / (double) i;
+				double f;
+				if (recall == 0 && precision == 0)
+				{
+					f = 0;
+				} else
+				{
+					f = recall * precision / (recall + precision);
+				}
+				System.out.print(recall + ";" + precision + ";" + f + "|");
+				resultsFileOutput.print(recall + ";" + precision + ";" + f + "|");
+				Triplet<Double, Double, Double> t = new Triplet(recall, precision, f);
+
+				query_id_statistics.put(i, t);
+				if ((i == resultsConfig.getLast()) || (((int) (recall * 10)) * 10 == resultsConfig.getLast()))
+				{
+					continueAnalyzingResults = false;
+				}
+
+				Triplet<Double, Double, Double> t2 = averageStatistics.get(index);
+				Triplet<Double, Double, Double> t3 = new Triplet(0.0, 0.0, 0.0);
+				t3.setFirst(recall + t2.getFirst());
+				t3.setSecond(precision + t2.getSecond());
+				t3.setThird(f + t2.getThird());
+
+				averageStatistics.set(index, t3);
+
+				index++;
+			}
+		}
+		println("");
+		resultsFileOutput.println("");
+		statistics.put(query_id, query_id_statistics);
+
+		imageResultsFileOutput.println("\n=============MISSING IMAGES=============");
+		int k = 1;
+		for (String s : missingImages)
+		{
+			imageResultsFileOutput.println(k + " : " + s);
+			k++;
+		}
+		imageResultsFileOutput.close();
+
+	}
+	System.out.print("average|");
+	resultsFileOutput.print("average|");
+	for (Triplet<Double, Double, Double> t : averageStatistics)
+	{
+		t.setFirst(t.getFirst() / statistics.size());
+		t.setSecond(t.getSecond() / statistics.size());
+		t.setThird(t.getThird() / statistics.size());
+		//PINTAR LA FILA
+		System.out.print(t.getFirst() + ";" + t.getSecond() + ";" + t.getThird() + "|");
+		resultsFileOutput.print(t.getFirst() + ";" + t.getSecond() + ";" + t.getThird() + "|");
+	}
+	println("");
+	resultsFileOutput.println("");
+	resultsFileOutput.close();
+}
+
+private static void trecEvalMethod(Configuration configuration, Set<Query> queries) throws FileNotFoundException, UnsupportedEncodingException, IOException, ParserConfigurationException, SAXException
+{
+	List<String> results = Query.getTRECResults(queries);
+	if (results.isEmpty())
+		
+		results = Query.deserializeTrecOutput(configuration);
+	//println("indri results = "+results);
+	PrintWriter writer = Writer.getWriter(configuration.getTrecResultsFile());
+	for (String s : results)
+	{
+		writer.println(s);
+	}
+	writer.close();
+
+	run(new File("/home/joan/trec_eval.9.0/trec_eval"), new File(configuration.getQRELFile()), new File(configuration.getTrecResultsFile()), new PrintWriter("dataOutFile.txt"), new PrintWriter("evalOutFile.txt"));
+}
+
+static public double[] run(File trecEvalFile, File qrelFile, File resultFile, java.io.Writer dataOutWriter, java.io.Writer evalOutWriter) throws IOException
+{
+	double[] array = new double[6];
+	Process p = Runtime.getRuntime().exec(trecEvalFile + " -q -c " + qrelFile + " " + resultFile);
+	println("Run treceval:" + trecEvalFile + " -q -c " + qrelFile + " " + resultFile);
+	BufferedReader in = null;
+	PrintWriter dataOut = null;
+	PrintWriter evalOut = null;
+
+	try
+	{
+		in = new BufferedReader(new InputStreamReader(p.getInputStream()));
+		if (dataOutWriter != null)
+		{
+			dataOut = new PrintWriter(dataOutWriter);
+		}
+		if (evalOutWriter != null)
+		{
+			evalOut = new PrintWriter(evalOutWriter);
+		}
+		final String format1 = "    at ";
+		final String format2 = "  At   ";
+		final String format3 = "                  ";
+		int count = 0;
+		for (String line; (line = in.readLine()) != null;)
+		{
+			if (evalOut != null)
+			{
+				evalOut.println(line);
+			}
+			if (line.startsWith(format1))
+			{
+				line = line.substring(format1.length());
+				if (dataOut != null)
+				{
+					dataOut.println(line);
+				}
+			}
+			if (line.startsWith(format2))
+			{
+				line = line.substring(format2.length());
+				int h = line.indexOf(":");
+				line = line.substring(h + 1).trim();
+				array[count++] = Double.parseDouble(line);
+			}
+			if (line.startsWith(format3))
+			{
+				line = line.substring(format3.length());
+				array[5] = Double.parseDouble(line);
+			}
+		}
+	} catch (NumberFormatException e)
+	{
+		println("Exception: " + e.getMessage());
+	} catch (IOException e)
+	{
+		println("Exception: " + e.getMessage());
+		throw e;
+	} finally
+	{
+		if (in != null)
+		{
+			in.close();
+		}
+		if (dataOut != null)
+		{
+			dataOut.close();
+		}
+		if (evalOut != null)
+		{
+			evalOut.close();
+		}
+	}
+	return array;
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[EvalResults.java]: " + string);
+}
+
+}

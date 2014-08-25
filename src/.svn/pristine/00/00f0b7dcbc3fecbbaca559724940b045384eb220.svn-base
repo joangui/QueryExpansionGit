@@ -1,0 +1,92 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package expansionBlocks;
+
+import configurations.Configuration;
+import edu.upc.dama.utils.objects.UtilsMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import model.Article;
+import model.Entity;
+import model.Query;
+
+/**
+ *
+ * @author joan
+ */
+public class MultipleEntityQueryExpansion
+{
+
+public static void execute(Configuration configuration, SortedSet<Query> queries) throws Exception
+{
+	for (Query query : queries)
+	{
+		execute(configuration, query);
+	}
+}
+
+public static void execute(Configuration configuration, Query query) throws Exception
+{
+	Set<Entity> inputEntities = query.getInputEntities();
+	int i = 1;
+
+	Map<Entity, Map<Entity, Double>> communities = new HashMap<>();
+
+	String RESULT_QUERY_FILE = configuration.getParameters().readString("resultQueries.xml", "RESULT_QUERY_FILE");
+	for (Entity entity : inputEntities)
+	{
+		Map<Entity, Double> topologicalCommunity = new HashMap<>();
+
+		if (!entity.isStopWord(configuration.getLanguage(),configuration.getFilterFilePaths()))
+		{
+			Query newQuery = new Query(query.getId() + "_" + i, entity.getName(), query.getContext(), configuration.getLanguage());
+			newQuery.setInputEntities(entity);
+			newQuery.setContextEntities(query.getContextEntities());
+
+			configuration.setResultQueryFile("resultQuery" + query.getId() + "_" + i + ".xml");
+
+			println("Executing Query " + newQuery);
+
+			//QueryPreProcess.execute(configuration, newQuery);
+			CreatePaths.execute(configuration, newQuery);
+			Query.serialize(configuration, newQuery);
+
+			SelectPaths.execute(configuration, newQuery);
+			Query.serialize(configuration, newQuery);
+
+			CreateCommunitiesFromPaths.execute(configuration, newQuery);
+			Query.serialize(configuration, newQuery);
+
+			topologicalCommunity = ProcessCommunities.execute(configuration, newQuery);
+			Query.serialize(configuration, newQuery);
+
+			topologicalCommunity = UtilsMap.sortByValue(topologicalCommunity);
+
+			println("Topological Query of " + newQuery.getId() + " :" + (topologicalCommunity));
+
+			if (entity.isAmbiguous())
+				entity.desambiguation(topologicalCommunity.keySet());
+
+		}
+		else println("Not doing expansion for \""+entity+"\" for being a filtered word");
+		communities.put(entity, topologicalCommunity);
+
+		i++;
+	}
+
+	configuration.setResultQueryFile(RESULT_QUERY_FILE);
+	query.setEntityCommunities(communities);
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[MultipleQueryExpansion.java]: " + string);
+}
+
+}

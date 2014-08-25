@@ -1,0 +1,432 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package expansionBlocks;
+
+import DEFS.Definitions;
+import Parameters.Parameters;
+import Strings.Tokenize.Tokenizer;
+import com.ibm.icu.text.Normalizer;
+import configurations.Configuration;
+import edu.upc.dama.dex.core.Graph;
+import edu.upc.dama.utils.objects.UtilsMap;
+import static expansionBlocks.ProcessCommunities.selectBestCommunities;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import model.Article;
+import model.Category;
+import model.Entity;
+import model.Query;
+import org.apache.commons.collections.CollectionUtils;
+import scaleCommunities.AbstractCommunityScalator;
+
+/**
+ *
+ * @author joan
+ */
+public class ProcessCommunities
+{
+
+public static Map<Entity, Double> execute(Configuration configuration, Query query) throws Exception
+{
+	Map<Set<Long>, Map<Entity, Double>> mapPathCommunities = query.getCommunities();
+	HashSet< Map<Entity, Double>> initialCommunities = new HashSet<>(mapPathCommunities.values());
+
+	Set< Map<Entity, Double>> scaledCommunities = new HashSet<>();
+
+	AbstractCommunityScalator as = configuration.getAbstractCommunityScalator();
+
+	for (Map<Entity, Double> community : initialCommunities)
+	{
+		Map<Entity, Double> scaledCommunity = as.scaledEmphasisArticlesInCommunity(configuration, query, community);
+		scaledCommunities.add(scaledCommunity);
+	}
+
+	Set<Map<Entity, Double>> communitiesFusioned = getCommunitiesFromCommunitiesBasedOnSimilarity(scaledCommunities, configuration.getFusionThreshold());
+	if (configuration.DEBUG_INFO)
+	{
+		println("Fusion communities based on similarity communities: ");
+		for (Map<Entity, Double> community : communitiesFusioned)
+		{
+			println(community);
+
+		}
+	}
+	println(initialCommunities.size() + " communities have been fusioned into " + communitiesFusioned.size());
+
+	println("[[WARNING]] - Select best community algorithm seems to differ from select best path. You may want to double ckeck it.");
+	Set<Map<Entity, Double>> selectBestCommunities = selectBestCommunities(configuration, communitiesFusioned, query.getTokenNames());
+
+	if (configuration.DEBUG_INFO)
+	{
+		println("Selected best communities: ");
+		for (Map<Entity, Double> community : selectBestCommunities)
+		{
+			println(community);
+		}
+	}
+
+	Map<Entity, Double> result = agregateCommunities(selectBestCommunities);
+
+	if (configuration.DEBUG_INFO)
+	{
+		println("Agragated community(size: " + result.size() + "): ");
+		println(result);
+	}
+
+	query.setCommunity(result);
+
+	return result;
+
+}
+
+public static Set<Map<Entity, Double>> selectBestCommunities(Configuration configuration, Set<Map<Entity, Double>> comSimilarityBased, Set<String> tokens) throws Exception
+{
+
+	println("Selecting best communities");
+	Set<Map<Entity, Double>> best = new HashSet<>();
+	double bestRank = 0.0;
+	Map<Map<Entity, Double>, Double> results = new HashMap<>();
+	for (Map<Entity, Double> set : comSimilarityBased)
+	{
+		//double d = calculateSimilarity(tokens, set)/set.size();
+		double d = calculateSimilarity(tokens, set, configuration.getLanguage());
+
+		//println("Set " + set + " w: " + d);
+		//if (d >= bestRank)
+		if (d >= bestRank && d > 0)
+		{
+			results.put(set, d);
+			if (d == bestRank)
+			{
+				best.add(set);
+			} else
+			{
+				best = new HashSet<>();
+				best.add(set);
+				bestRank = d;
+			}
+		}
+		d = 0.0;
+	}
+	if (configuration.DEBUG_INFO)
+	{
+		int i = 1;
+		results = UtilsMap.sortByValue(results);
+		for (Map.Entry<Map<Entity, Double>, Double> m : results.entrySet())
+		{
+			println("===============");
+			println("Community " + i + ": " + m.getValue() + ":" + m.getKey());
+			println("===============");
+			i++;
+		}
+	}
+	return best;
+}
+
+private static double calculateSimilarity(Set<String> tokens, Map<Entity, Double> set, Definitions.LANGUAGE language) throws Exception
+{
+	//println("Tokens:"+tokens);
+	//Set<String> tokensSet = new HashSet<String>();
+	double d = 0.0;
+	Collection<String> intersection;
+	///List<Article> union = new ArrayList<Article>();
+	List<String> checkedToken = new ArrayList<String>();
+	//println("--------------------");
+	for (Map.Entry<Entity, Double> e : set.entrySet())
+	{
+		if (e.getValue() > 0)// Si e.getValue == 0 l'article no forma part de la comunitat 
+		{
+			Entity entity = (e.getKey());
+println("Is entity \""+entity.getName()+"\" ambiguous?"+ 			entity.isAmbiguous());
+			Set<String> otherNames = entity.getEntityNames();
+			for (String otherName : otherNames)
+			{
+				intersection = CollectionUtils.intersection(Tokenizer.getTokenizedList(otherName, language, false), tokens);
+				if (intersection.size() > 0 && intersection.size() == (Tokenizer.getTokenizedList(otherName, language, false)).size())
+				{
+					d += intersection.size();
+				}
+			}
+		}
+	}
+//		println("Community weight: " + d + "\n--------------------");
+	return d;
+}
+
+public static void main(String[] args) throws FileNotFoundException, IOException, Exception
+{
+	Parameters parameters = new Parameters("input.cfg");
+	Configuration c = new Configuration(parameters);
+
+	Query q = Query.readQueryLine(c, "71;colored Volkswagen beetles;Volkswagen beetles in any other color, for example, red, blue, green or yellow; ; ; ; ; ; ; ; ; ; ; ; ;");
+
+	QueryPreProcess.execute(c, q);
+
+	CreatePaths.execute(c, q);
+
+	SelectPaths.execute(c, q);
+
+	CreateCommunitiesFromPaths.execute(c, q);
+
+	execute(c, q);
+
+}
+
+private static Set<Map<Entity, Double>> getCommunitiesFromCommunitiesBasedOnSimilarity(Set<Map<Entity, Double>> communities, Double fusionThreshold)
+{
+	//Set<Set<Article>> megaCommunities = new HashSet<Set<Article>>(valueSet(communities));
+	Set<Map<Entity, Double>> megaCommunities = new HashSet<>();
+
+	for (Map<Entity, Double> community : communities)
+	{
+		Set<Entity> communityIds = new HashSet<>(community.keySet());
+		Map<Entity, Double> megaCommunity = new HashMap<>(community);
+		//if (!megaCommunity.isEmpty())
+		{
+			for (Map<Entity, Double> community2 : communities)
+			{
+				Set<Entity> communityIds2 = new HashSet<>(community2.keySet());
+				if (!community2.isEmpty() && (compareCommunities(communityIds, communityIds2) >= fusionThreshold))
+				{
+					//println("Fusionant: "+e.getValue()+" i "+e2.getValue()+" similarity:"+compareCommunities(community, community2)+" ("+threshold+")");
+					megaCommunity = fusion(community, community2);
+				}
+			}
+		}
+		if (!megaCommunity.isEmpty())
+		{
+			megaCommunities.add(megaCommunity);
+		}
+	}
+	return megaCommunities;
+}
+
+private static Map<Entity, Double> fusion(Map<Entity, Double> c1, Map<Entity, Double> c2)
+{
+	Map<Entity, Double> result = new HashMap<>();
+	Map<Entity, Double> c1c = new HashMap<>(c1);
+	Map<Entity, Double> c2c = new HashMap<>(c2);
+	Set<Long> intersection = new HashSet(CollectionUtils.intersection(c1c.keySet(), c2c.keySet()));
+	for (Map.Entry<Entity, Double> e : c1c.entrySet())
+	{
+		Entity id = e.getKey();
+		Double d = e.getValue();
+		if (intersection.contains(id))
+		{
+			Double d2 = c2c.get(id);
+			d = (d + d2) / 2;
+			c2c.remove(id);
+		}
+		result.put(id, d);
+	}
+	for (Map.Entry<Entity, Double> e : c2c.entrySet())
+	{
+		Entity id = e.getKey();
+		Double d = e.getValue();
+		result.put(id, d);
+	}
+	return result;
+
+}
+
+private static double compareCommunities(Set<Entity> c1, Set<Entity> c2)
+{
+	Collection intersection = CollectionUtils.intersection(c1, c2);
+	double d, d1, d2;
+	d1 = ((double) intersection.size()) / ((double) c1.size());
+	d2 = ((double) intersection.size()) / ((double) c2.size());
+	d = d1 > d2 ? d1 : d2;
+
+	return d;
+
+}
+
+private static Map<Entity, Double> agregateCommunities(Set<Map<Entity, Double>> selectBestCommunities)
+{
+	Map<Entity, Double> result = new HashMap<>();
+	Map<Entity, List<Double>> communitiesAgregator = new HashMap<>();
+	for (Map<Entity, Double> map : selectBestCommunities)
+	{
+		for (Map.Entry<Entity, Double> e : map.entrySet())
+		{
+			Entity id = e.getKey();
+			Double d = e.getValue();
+			List<Double> get = communitiesAgregator.get(id);
+			if (get == null)
+			{
+				get = new ArrayList<Double>();
+			}
+			get.add(d);
+			communitiesAgregator.put(id, get);
+		}
+	}
+	for (Map.Entry<Entity, List<Double>> e : communitiesAgregator.entrySet())
+	{
+		Entity id = e.getKey();
+		List<Double> dList = e.getValue();
+		Double w = 0.0;
+		for (Double d : dList)
+		{
+			w += d;
+		}
+		w /= selectBestCommunities.size();
+		//println(a+": "+dList+" = "+w);
+		if (w > 0.0)
+		{
+			result.put(id, w);
+		}
+	}
+	return result;
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[ProcessCommunities.java]: " + string);
+}
+
+private static void println()
+{
+	System.out.println("	[ProcessCommunities.java]: ");
+}
+
+private static void print(Object string)
+{
+	System.out.print("	[ProcessCommunities.java]: " + string);
+}
+
+private static void print()
+{
+	System.out.print("	[ProcessCommunities.java]: ");
+}
+
+public static void execute(Configuration configuration, Set<Query> queries) throws Exception
+{
+	for (Query q : queries)
+	{
+		Map<Entity, Double> execute = execute(configuration, q);
+		if (configuration.printTopologicalExtension())
+		{
+			printTopologicalExtension(q, execute);
+		}
+	}
+}
+
+private static void printTopologicalExtension(Query query, Map<Entity, Double> community) throws FileNotFoundException, UnsupportedEncodingException
+{
+
+	File theDir = new File("images");
+	if (!theDir.exists())
+	{
+		boolean result = theDir.mkdir();
+	}
+
+	PrintWriter writer = FileManagement.Writer.getWriter("images/" + query.getId() + "TopologicalCommunity.txt");
+
+	writer.println("strict digraph G{");
+	Set<Entity> entitySet = community.keySet();
+	Set<Long> categoriesSet = new HashSet<>();
+	for (Entity e : entitySet)
+	{
+		categoriesSet.addAll(Article.getCategories(e.getId()));
+	}
+	Map<Long, Double> categoryWeightMap = new HashMap<>();
+	Double maxW = 0.0;
+	for (Entity entity : entitySet)
+	{
+		Long entityID = entity.getId();
+
+		maxW = maxW < community.get(entityID) ? community.get(entityID) : maxW;
+
+		Set<Long> neighbors = Article.getNeighbors(entityID, Graph.EDGES_OUT);
+		Collection<Long> intersection = CollectionUtils.intersection(neighbors, entitySet);
+		for (Long neighbourID : intersection)
+		{
+			if (!Article.isARedirect(entityID) && !Article.isARedirect(neighbourID))
+			{
+				writer.println(entityID + " -> " + neighbourID + " [color=red];");
+			}
+
+		}
+
+		Set<Long> categories = Article.getCategories(entityID);
+		for (Long categoryID : categories)
+		{
+			writer.println(entityID + " -> " + categoryID + " [color=green];");
+			Double w = categoryWeightMap.put(categoryID, community.get(entityID));
+			if (w != null && w > community.get(entityID))
+				categoryWeightMap.put(categoryID, w);
+
+		}
+
+		Set<Long> redirects = Article.getRedirections(entityID);
+		/*
+		 for (Long redirectID : redirects)
+		 {
+		 if (!Article.isARedirect(articleID))
+		 {
+		 }
+		 }*/
+
+	}
+	for (Long categoryID : categoriesSet)
+	{
+		Set<Long> neighbors = Category.getNeigbors(categoryID, Graph.EDGES_OUT);
+		Collection<Long> intersection = CollectionUtils.intersection(neighbors, categoriesSet);
+		for (Long neighbourID : intersection)
+		{
+			writer.println(categoryID + " -> " + neighbourID + " [color=blue];");
+		}
+		neighbors = Category.getNeigbors(categoryID, Graph.EDGES_IN);
+		intersection = CollectionUtils.intersection(neighbors, categoriesSet);
+		for (Long neighbourID : intersection)
+		{
+			writer.println(neighbourID + " -> " + categoryID + " [color=blue];");
+		}
+
+	}
+
+	for (Entity entity : entitySet)
+	{
+			String title = entity.getName();
+			title = Normalizer.normalize(title, Normalizer.NFD);
+			title = title.replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+			title = title.replaceAll("[.]+", " ");
+
+			//writer.println(id + "[label=\"" + title + "\"];");
+//			String  weight =  new BigDecimal(community.get(id)*10).toPlainString();
+			BigDecimal weightDouble = new BigDecimal(2 / maxW * community.get(entity) + .5);
+			String weight = weightDouble.toPlainString();
+			writer.println(entity + "[label=\"" + title + "\", width=" + weight + ", height=" + weight + " fixedsize=true,style=filled,color=\"#c0c0c0\"];");
+	}
+	for (Long id : categoriesSet)
+	{
+		String title = (new Category(id)).getName();
+		title = Normalizer.normalize(title, Normalizer.NFD);
+		title = title.replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+		title = title.replaceAll("[.]+", " ");
+
+		BigDecimal weightDouble = new BigDecimal(2 / maxW * categoryWeightMap.get(id) + .5);
+		String weight = weightDouble.toPlainString();
+		writer.println(id + "[label=\"" + title + "\", width=" + weight + ", height=" + weight + " fixedsize=true,style=filled,color=\"#f0f0f0\"];");
+	}
+
+	writer.println("}");
+	writer.close();
+
+}
+
+}

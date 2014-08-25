@@ -1,0 +1,78 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package utils;
+
+import Structures.Pair;
+import configurations.Configuration.EXPANSION_BLOCK;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ *
+ * @author joan
+ */
+public class TimeCalculator
+{
+
+Map<EXPANSION_BLOCK, Pair<Long, Long>> times;
+private int numQueries = -1;
+
+public TimeCalculator()
+{
+	times = new LinkedHashMap<>();
+}
+
+public void setNumQueries(int numQueries)
+{
+	this.numQueries = numQueries;
+}
+
+public void insert(EXPANSION_BLOCK block, long time)
+{
+	Pair<Long, Long> expansionBlockTime = times.get(block);
+	if (expansionBlockTime == null)
+	{
+		expansionBlockTime = new Pair(time, null);
+	} else
+	{
+		expansionBlockTime.setSecond(time);
+	}
+	times.put(block, expansionBlockTime);
+}
+
+public void print(int size)
+{
+	numQueries = size;
+	print();
+}
+
+public void print()
+{
+	StringBuilder sb = new StringBuilder();
+	for (Map.Entry<EXPANSION_BLOCK, Pair<Long, Long>> e : times.entrySet())
+	{
+		EXPANSION_BLOCK block = e.getKey();
+		Pair<Long, Long> timesPair = e.getValue();
+		long start_time = timesPair.getFirst();
+		long end_time = timesPair.getSecond();
+
+		if (numQueries != -1)
+			sb.append(block).append(" TIME: ").append((end_time - start_time) / 1000.0).append("s., AVG: ").append((end_time - start_time) / 1000.0 / numQueries).append("s. per query.\n");
+		else
+			sb.append(block).append(" TIME: ").append((end_time - start_time) / 1000.0).append("s.\n");
+	}
+	println(sb);
+	
+
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[TimeCalculator.java]: " + string);
+}
+
+}

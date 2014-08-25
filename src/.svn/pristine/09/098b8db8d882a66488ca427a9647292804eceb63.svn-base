@@ -1,0 +1,244 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package scaleCommunities;
+
+import Strings.StringUtils;
+import configurations.Configuration;
+import edu.upc.dama.utils.objects.UtilsMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import model.Article;
+import model.Entity;
+import model.Query;
+
+/**
+ *
+ * @author joan
+ */
+public class ScaleBasedOnInputContextSimilarity extends AbstractCommunityScalator
+{
+
+@Override
+public Map<Entity, Double> scaledEmphasisArticlesInCommunity(Configuration configuration, Query query, Map<Entity, Double> community)
+{
+	List<String> easyExpandedInput = query.getEasyExpandedInput();
+	Set<String> inputList = new HashSet<>(easyExpandedInput);
+	inputList.add(query.getInput());
+
+	String context = query.getContext();
+
+	Set<Entity> firstLevel = firstLevelEmphasis(community, inputList, context);
+
+	println("First Level of the scaled community: " + firstLevel);
+
+	HashMap<Entity, Double> copyCommunity = new HashMap<>(community);
+	for (Entity id : firstLevel)
+	{
+		copyCommunity.remove(id);
+	}
+
+	Integer i = 0;
+	HashMap<Integer, Set<Entity>> scaledArticles = new HashMap<>();
+	scaledArticles.put(i, firstLevel);
+	Set<Entity> previousLevel = firstLevel;
+	HashMap<Entity, Double> copyCommunity2 = new HashMap<>(copyCommunity);
+	while (!copyCommunity2.isEmpty() && !firstLevel.isEmpty() && !previousLevel.isEmpty())
+	{
+		//println("copyCommunity2: " + copyCommunity2);
+		//println("previousLevel: " + previousLevel);
+		i++;
+		Set<Entity> currentLevel = new HashSet<>();
+		for (Map.Entry<Entity, Double> e : copyCommunity.entrySet())
+		{
+			Entity id = e.getKey();
+			if (isNeighbor(id, previousLevel))
+			{
+				currentLevel.add(id);
+			}
+		}
+		scaledArticles.put(i, currentLevel);
+		previousLevel = currentLevel;
+		for (Entity id : currentLevel)
+		{
+			copyCommunity.remove(id);
+		}
+
+		copyCommunity2 = new HashMap<>(copyCommunity);
+	}
+
+	println("Comunitat escalada: " + scaledArticles);
+	Map<Entity, Double> result = new HashMap<>();
+	i = 0;
+	while (i < scaledArticles.size())
+	{
+		Set<Entity> currentLevel = scaledArticles.get(i);
+		//print("Redirections of level "+i+" " + currentLevel + ": ");
+
+		/*if (configuration.addRedirectsToCommunities())
+		 {
+		 currentLevel = addRedirections(currentLevel);
+		 }*/
+//            println(currentLevel);
+		for (Entity id : currentLevel)
+		{
+
+			if (result.get(id) == null)
+			{
+				result.put(id, 1 - (1.0 / scaledArticles.size() * i));
+			}
+
+		}
+		i++;
+	}
+
+	result = UtilsMap.sortByValue(result);
+	println("Emphasised community: " + (result));
+
+	return result;
+}
+
+static private Set<Entity> firstLevelEmphasis(Map<Entity, Double> community, Set<String> inputList, String context)
+{
+
+	Set<Entity> firstLevel = new HashSet<>();
+
+	Integer maxSize = 0;
+	context = " " + context.toLowerCase() + " ";
+	println("Input List Size : " + inputList.size());
+
+	Map<Integer, Set<Entity>> sizeSortedArticles = new HashMap<>();
+	for (Map.Entry<Entity, Double> e : community.entrySet())
+	{
+//		Article a = new Article(e.getKey());
+		Entity entity = e.getKey();
+		for (String otherName : entity.getEntityNames())
+		{
+			String articleTitle = entity.getName();
+			String[] wordsArticleTitle = articleTitle.split("\\ ");
+			int numWordsArticleTitle = wordsArticleTitle.length;
+			if (numWordsArticleTitle > maxSize)
+			{
+				maxSize = numWordsArticleTitle;
+			}
+			Set<Entity> sizedArticles = sizeSortedArticles.get(numWordsArticleTitle);
+			if (sizedArticles == null)
+			{
+				sizedArticles = new HashSet<>();
+			}
+			sizedArticles.add(entity);
+			sizeSortedArticles.put(numWordsArticleTitle, sizedArticles);
+		}
+	}
+
+	boolean stop = false;
+	for (int size = maxSize; size > 0 && !stop && firstLevel.isEmpty(); size--)
+	{
+		//println("size = " + size);
+		Set<Entity> entities = sizeSortedArticles.get(size);
+		if (entities != null)
+			for (Entity entity : entities)
+			{
+				Set<String> sizedArticles = entity.getEntityNames();//sizeSortedArticles.get(size);
+				if (sizedArticles != null)
+				{
+					for (String entityName : sizedArticles)
+					{
+						String articleTitle = StringUtils.removeInBrackets(entityName);//.trim();//.toLowerCase();
+
+						if (!articleTitle.isEmpty())
+						{
+							articleTitle = " " + articleTitle + "";
+							if (context.contains(articleTitle))
+							{
+								println("\"" + articleTitle + "\" is added to the first level (context-contained): " + firstLevel);
+								//firstLevel.add(new Entity(entityName));
+								firstLevel.add(entity);
+								stop = true;
+							}
+							if (!firstLevel.contains(entity))
+								for (String input : inputList)
+								{
+									if (stop)
+										break;
+									input = " " + input.toLowerCase() + " ";
+									if (size == 1)
+									{
+										articleTitle = " " + articleTitle + " ";
+									}
+									if (input.contains(articleTitle))
+									{
+										println("\"" + articleTitle + "\" is added to the first level: " + firstLevel);
+										//firstLevel.add(new Entity(entityName));
+										firstLevel.add(entity);
+										stop = true;
+									}
+								}
+						}
+					}
+				}
+			}
+	}
+
+	return firstLevel;
+}
+
+static protected Set<Long> addRedirections(Set<Long> setArticles)
+{
+	Set<Article> articlesSet = new HashSet<>();
+	for (Long id : setArticles)
+	{
+
+		Article a = new Article(id);
+		Set<Article> articleSet = new HashSet<>();
+		articleSet.add(a);
+		articlesSet.addAll(Article.getRedirections(articleSet));
+		int oldSize = 0;
+		int newSize = -1;
+		while (oldSize != newSize)
+		{
+			oldSize = articlesSet.size();
+			articlesSet.addAll(Article.getRedirections(articleSet));
+			articlesSet.add(a);
+			articleSet.addAll(articlesSet);
+			newSize = articlesSet.size();
+		}
+	}
+	Set<Long> result = new HashSet<>();
+	for (Article a : articlesSet)
+	{
+		result.add(a.getId());
+	}
+	return result;
+
+}
+
+static private boolean isNeighbor(Entity entity, Set<Entity> entityList)
+{
+	boolean res = false;
+//        print(a+ "is neighbor of"+articleList+": ");
+	Set<Long> articleList = new HashSet<>();
+	for (Entity e : entityList)
+	{
+		articleList.add(e.getId());
+	}
+	for (Long id2 : articleList)
+	{
+		Article a2 = new Article(id2);
+		res |= Article.areNeighbors(a2.getId(), entity.getId());
+	}
+//        println(res);
+	return res;
+
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[ScaledBasedOnInputContextSimilarity.java]: " + string);
+}
+}

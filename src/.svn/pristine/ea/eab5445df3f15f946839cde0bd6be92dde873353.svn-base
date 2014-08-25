@@ -1,0 +1,379 @@
+package model;
+
+import DEFS.Definitions.LANGUAGE;
+import Strings.Tokenize.Tokenizer;
+import configurations.Configuration;
+import edu.upc.dama.dex.bean.EntityBean;
+import edu.upc.dama.dex.core.DbGraph;
+import edu.upc.dama.dex.core.Graph;
+import edu.upc.dama.dex.core.Objects;
+import edu.upc.dama.dex.core.Value;
+import edu.upc.dama.dex.utils.DexUtil;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * Classe que representa un token, un mot.
+ *
+ * @author ntrench
+ *
+ */
+public class Token implements Comparable<Token>// extends EntityBean
+{
+
+private String name;
+private Long id;
+private Double weight = null;
+public static int CLASS_ID; // identificador de classe
+public static long TOKEN_ATTR_ID;
+public static String TOKEN_ATTR_NAME = "token";
+public static AtomicLong nextID = new AtomicLong(1L << 40);
+
+static
+{
+//	Set<Long> attributes;
+
+//	CLASS_ID = g.findType(Token.class.getSimpleName());
+//	attributes = g.getAttributesFromType(CLASS_ID);
+//	HashMap<String, Long> attribute = new HashMap<String, Long>(
+//		attributes.size());
+//	Iterator<Long> attributesIt = attributes.iterator();
+//	while (attributesIt.hasNext())
+//	{
+//		long currentAttr = attributesIt.next();
+//		Graph.AttributeData aData = g.getAttributeData(currentAttr);
+//		attribute.put(aData.getName(), currentAttr);
+//	}
+//	TOKEN_ATTR_ID = attribute.get(TOKEN_ATTR_NAME);
+}
+
+static private long getNextId()
+{
+	return nextID.addAndGet(1);
+
+}
+
+static public Token Token(String name, boolean needToExist)
+{
+	if (needToExist)
+		return (new Token(name));
+	else
+	{
+		Token t = new Token(name);
+		if (t.id == null)
+			t.name = name;
+		return t;
+	}
+
+}
+
+public Token(long id, String name)
+{
+	this.id = id;
+	this.name = name;
+
+	//this.setObjectIdentifier(id);
+}
+
+public Token(long id, String name, double weight)
+{
+	this.id = id;
+	this.name = name;
+	this.weight = weight;
+	//this.setObjectIdentifier(id);
+}
+
+public Token(Token t)
+{
+	this.id = t.id;
+	this.name = t.name;
+	this.weight = t.weight;
+	//this.setObjectIdentifier(t.id);
+}
+
+public Token(String name)
+{
+//	int tokenType = g.findType(Token.class.getSimpleName());
+	//long TOKEN_ATTR_ID;
+	//String TOKEN_ATTR_NAME = "token";
+
+//	long tokenAttr = g.findAttribute(tokenType, TOKEN_ATTR_NAME);
+//	Objects tmp = g.select(tokenAttr, Graph.OPERATION_EQ, new Value(name));
+//	if (!tmp.isEmpty())
+	{
+		long id_local = Token.getNextId();
+//		if (id_local != Graph.INVALID_NODE)
+		{
+			this.id = id_local;
+			this.name = name;
+			//this.setObjectIdentifier(id_local);
+		}
+		/*else
+		 {
+		 this.id = null;
+		 this.name = null;
+		 }*/
+	}
+	/*	
+	 else
+	 {
+	 //System.out.println("Token " + name + " does not exist");
+	 this.id = null;
+	 this.name = null;
+	 }
+	 tmp.close();
+	 */
+}
+
+public Token(String name, Double weight)
+{
+	this(name);
+	this.weight = weight;
+}
+
+public Token(long id)
+{
+	Graph g = DexUtil.getDBGraph();
+	this.id = id;
+	this.name = g.getAttribute(id, g.findAttribute(g.getType(id), "token")).getString();
+	//this.setObjectIdentifier(id);
+}
+
+public Token(long id, double weight)
+{
+	this(id);
+	this.weight = weight;
+}
+
+public static Set<Token> getTokens(String tokenString)
+{
+	tokenString = tokenString.trim();
+	Set<Token> result = new HashSet<Token>();
+	int i;
+	String line, word, subword;
+	StringTokenizer elementos, subelementos;
+	elementos = new StringTokenizer(tokenString, "[]");
+	String name = null;
+	Double weight = null;
+	while (elementos.hasMoreTokens())
+	{
+		word = elementos.nextToken();
+		i = 1;
+		subelementos = new StringTokenizer(word, ",");
+		while (subelementos.hasMoreTokens())
+		{
+			Object nextElement = subelementos.nextElement();
+			if (i == 1)
+			{
+				name = nextElement.toString();
+			}
+			if (i == 2)
+			{
+				weight = new Double(nextElement.toString());
+			}
+			i++;
+		}
+		Token t = new Token(name, weight);
+		result.add(t);
+	}
+	return result;
+}
+
+public static Set<Token> tokenize(String str, LANGUAGE l, boolean useStopWords) throws Exception
+{
+	List<String> terms = Tokenizer.getTokenizedList(str, l, useStopWords);
+
+	return getTokens(terms);
+}
+
+public static Set<String> getSetString(Set<Token> tokens)
+{
+	Set<String> result = new HashSet<String>();
+	for (Token t : tokens)
+	{
+		result.add(t.getName());
+	}
+	return result;
+}
+
+public static Set<Token> getTokens(Set<String> stringTokens)
+{
+	Set<Token> tokenSet = new HashSet<Token>();
+	for (String t : stringTokens)
+	{
+		Token token = new Token(t);
+		//System.out.println("Token id= "+token.id+"Token name= "+token.name);
+		if (token.id != -1)
+		{
+			// System.out.println(token.getName());
+			tokenSet.add(token);
+		}
+	}
+	return tokenSet;
+}
+
+public static Set<Token> tokenize(List<String> inputList, LANGUAGE l, boolean useStopWords) throws Exception
+{
+	List<String> terms = Tokenizer.getTokenizedList(inputList, l, useStopWords);
+	return getTokens(terms);
+}
+
+public Double getWeight()
+{
+	return weight;
+}
+
+public void setWeight(double weight)
+{
+	this.weight = weight;
+}
+
+public String getName()
+{
+	/*if (name == null)
+		
+	 {
+	 //             name = tokenDAO.getToken(id);
+
+	 name = g.getAttribute(id, g.findAttribute(g.getType(id), "token")).getString();
+	 }*/
+	return name;
+
+}
+
+public void setName(String token)
+{
+	this.name = token;
+}
+
+public Long getId()
+{
+	return id;
+}
+
+@Override
+public String toString()
+{
+	DecimalFormat df = new DecimalFormat("#.###");
+	//String s = getName();
+	//String s = "[" + getName() + " - " + df.format(weight) + "]";
+	String idString = id == null ? "null" : id.toString();
+	String weightString = weight == null ? "null" : weight.toString();
+	String s = "[" + getName() + "-" + idString + "," + weightString + "]";
+	return s;
+}
+
+public static void NormalizeTokens(Set<Token> tokens)
+{
+	double mod = 0.0;
+	for (Token t : tokens)
+	{
+		mod += (t.getWeight() * t.getWeight());
+	}
+	mod = Math.sqrt(mod);
+	for (Token t : tokens)
+	{
+		t.setWeight(t.getWeight() / mod);
+		//System.out.println("Token \""+t.getName()+"\" ("+t.getWeight()+")");
+
+	}
+
+}
+
+static public Set<Token> getTokens(List<String> tokensList)
+{
+
+	HashSet<Token> result = new HashSet<Token>();
+	//Graph g = DexUtil.getDBGraph();
+
+	Value v = new Value();
+
+	for (String tokenName : tokensList)
+	{
+
+		//v.setString(tokenName);
+		//Objects matchingTokens = g.select(TOKEN_ATTR_ID, Graph.OPERATION_EQ, v);
+		//if (!matchingTokens.isEmpty())
+		{
+			//	if (matchingTokens.size() > 1)
+			{
+		//		System.err.println("Error, too many matching tokens");
+
+			}
+			//else
+			{
+				//	for (long token_id : matchingTokens)
+				{
+					result.add(new Token(Token.getNextId(), tokenName, 1));
+
+				}
+
+			}
+		}
+		//matchingTokens.close();
+	}
+	return (result);
+}
+//
+
+public static boolean isStopWord(Configuration configuration, String entity) throws Exception
+{
+	String[] split = entity.split("\\ ");
+	if (split.length > 1)
+		return false;
+	else
+	{
+		Set<Token> tokenize = tokenize(entity, configuration.getLanguage(), true);
+		if (tokenize.isEmpty())
+			return true;
+		else
+			return false;
+	}
+
+}
+
+public static boolean isStopWord(LANGUAGE language, String entity) throws Exception
+{
+	String[] split = entity.split("\\ ");
+	if (split.length > 1)
+		return false;
+	else
+	{
+		Set<Token> tokenize = tokenize(entity, language, true);
+		if (tokenize.isEmpty())
+			return true;
+		else
+			return false;
+	}
+
+}
+
+@Override
+public boolean equals(Object obj)
+{
+	if (obj == this)
+		return true;
+	if (obj == null)
+		return true;
+	if (obj instanceof Token)
+	{
+		Token other = (Token) obj;
+		return this.name.equals(other.name);
+	} else
+		return false;
+
+}
+
+	@Override
+	public int compareTo(Token o)
+	{
+		return this.name.compareTo(o.name);
+	}
+}

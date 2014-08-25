@@ -1,0 +1,225 @@
+package model;
+
+import edu.upc.dama.dex.bean.EntityBean;
+import edu.upc.dama.dex.core.Graph;
+import edu.upc.dama.dex.core.Objects;
+import edu.upc.dama.dex.core.Value;
+import edu.upc.dama.dex.utils.DexUtil;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import static model.Article.CLASS_ID;
+
+/**
+ * Classe que representa una categoria de viquipèdia.
+ *
+ * @author ntrench
+ *
+ */
+public class Category extends EntityBean
+{
+
+Graph g = DexUtil.getDBGraph();
+
+private Long id;
+private String name;
+public static int CLASS_ID; // identificador de classe
+public static int TOKEN_ID;
+public static int CATEGORY_TOKENS_ID;
+public static int CATEGORY_CHILDREN_ID;
+public static int CATEGORY_FROM_ARTICLE_EDGE_ID;
+public static int ARTICLE_FROM_CATEGORY_EDGE_ID;
+public static long NAME_ATTR_ID;
+public static long TITLE_ATTR_ID;
+public static long CONTENT_ATTR_ID;
+public static long TOKEN_ATTR_ID;
+public static long TOKEN_WEIGHT_ATTR_ID;
+public static int ARTICLE_ID;
+public static String ARTICLE_ID_NAME = "Article";
+public static String NAME_ATTR_NAME = "name";
+public static String TITLE_ATTR_NAME = "title";
+public static String CONTENT_ATTR_NAME = "content";
+public static String TOKEN_ATTR_NAME = "token";
+public static String TOKEN_ID_NAME = "Token";
+public static String TOKEN_WEIGHT_ATTR_NAME = "weight";
+public static String CATEGORY_TOKENS_ID_NAME = "category_tokens";
+public static String CATEGORY_CHILDREN_ID_NAME = "category_children";
+public static String CATEGORY_FROM_ARTICLE_EDGE_ID_NAME = "belongs";
+public static String ARTICLE_FROM_CATEGORY_EDGE_ID_NAME = "contains";
+public static String DOC_TOKEN_TF_IDF_ATTR_TYPE = "weight";
+private static boolean notDone = true;
+private static final String CONTAINS_ID_NAME = "contains";
+private static final int CONTAINS_ID;
+
+static
+{
+	Graph g = DexUtil.getDBGraph();
+	Set<Long> attributes;
+
+	CLASS_ID = g.findType(Category.class.getSimpleName());
+	TOKEN_ID = g.findType(TOKEN_ID_NAME);
+	attributes = g.getAttributesFromType(TOKEN_ID);
+	HashMap<String, Long> attribute = new HashMap<String, Long>(
+			attributes.size());
+	Iterator<Long> attributesIt = attributes.iterator();
+	while (attributesIt.hasNext())
+	{
+		long currentAttr = attributesIt.next();
+		Graph.AttributeData aData = g.getAttributeData(currentAttr);
+		attribute.put(aData.getName(), currentAttr);
+	}
+
+	//System.out.println(attribute);
+	TOKEN_ATTR_ID = g.findAttribute(TOKEN_ID, TOKEN_ATTR_NAME);
+	TOKEN_WEIGHT_ATTR_ID = g.findAttribute(TOKEN_ID, TOKEN_WEIGHT_ATTR_NAME);
+	CATEGORY_TOKENS_ID = g.findType(CATEGORY_TOKENS_ID_NAME);
+	CATEGORY_CHILDREN_ID = g.findType(CATEGORY_CHILDREN_ID_NAME);
+	CATEGORY_FROM_ARTICLE_EDGE_ID = g.findType(CATEGORY_FROM_ARTICLE_EDGE_ID_NAME);
+	ARTICLE_FROM_CATEGORY_EDGE_ID = g.findType(ARTICLE_FROM_CATEGORY_EDGE_ID_NAME);
+
+	CONTAINS_ID = g.findType(CONTAINS_ID_NAME);
+
+	attributes = g.getAttributesFromType(CLASS_ID);
+
+	//HashMap<String, Long>
+	attribute = new HashMap<String, Long>(attributes.size());
+	attributesIt = attributes.iterator();
+	while (attributesIt.hasNext())
+	{
+		long currentAttr = attributesIt.next();
+		Graph.AttributeData aData = g.getAttributeData(currentAttr);
+		attribute.put(aData.getName(), currentAttr);
+	}
+
+	NAME_ATTR_ID = attribute.get(NAME_ATTR_NAME);
+	ARTICLE_ID = g.findType(ARTICLE_ID_NAME);
+	TITLE_ATTR_ID = g.findAttribute(ARTICLE_ID, TITLE_ATTR_NAME);
+	CONTENT_ATTR_ID = g.findAttribute(ARTICLE_ID, CONTENT_ATTR_NAME);
+	notDone = false;
+}
+
+public Category()
+{
+}
+/*public Category(long id, String name) {
+ this.id = id;
+ this.name = name;
+ }*/
+
+public Category(long id)
+{
+	this.id = id;
+	this.name = null;
+	this.setObjectIdentifier(id);
+}
+
+public Category(String name)
+{
+	long findAttribute = g.findAttribute(CLASS_ID, "name");
+	Objects select = g.select(findAttribute, Graph.OPERATION_EQ, new Value(name));
+	if (select.isEmpty())
+	{
+		this.id = null;
+		name = null;
+	} else
+	{
+		this.id = select.first();
+		this.name = name;
+		this.setObjectIdentifier(id);
+	}
+	select.close();
+}
+
+/**
+ *
+ * @return
+ */
+public Long getId()
+{
+	return id;
+}
+
+public void setId(long id)
+{
+	this.id = id;
+}
+
+public void setName(String name)
+{
+	this.name = name;
+}
+
+public String getName()
+{
+	if (name == null)
+	{
+		//name = categoryDAO.getName(id);
+		name = g.getAttribute(id, g.findAttribute(g.getType(id), "name")).toString();
+	}
+	return name;
+}
+
+public String execute() throws Exception
+{
+	throw new UnsupportedOperationException("Not supported yet.");
+}
+
+@Override
+public String toString()
+{
+	return "[" + this.getName() + "]";
+}
+
+static public List<Integer> getEdges()
+{
+
+	List<Integer> ret = new ArrayList<>();
+	if (ARTICLE_FROM_CATEGORY_EDGE_ID != Graph.INVALID_EDGE)
+	{
+		ret.add(ARTICLE_FROM_CATEGORY_EDGE_ID);
+	}
+	if (CATEGORY_CHILDREN_ID != Graph.INVALID_EDGE)
+	{
+		ret.add(CATEGORY_CHILDREN_ID);
+	}
+
+	return ret;
+}
+
+static public Integer getType_()
+{
+	return CLASS_ID; //To change body of generated methods, choose Tools | Templates.
+}
+
+static public boolean isCategory(long oid)
+{
+	Graph g = DexUtil.getDBGraph();
+
+	return g.getType(oid) == CLASS_ID;
+}
+
+public static Set<Long> getNeigbors(Long id, short DIRECTION)
+{
+	Graph g = DexUtil.getDBGraph();
+	Objects neighbors = g.neighbors(id, CATEGORY_CHILDREN_ID, DIRECTION);
+	Set<Long> neigborsSet = new HashSet<>(neighbors);
+	neighbors.close();
+	return neigborsSet;
+}
+
+public static Set<Category> getFathers(Category c)
+{
+	Graph g = DexUtil.getDBGraph();
+	Objects neighbors = g.neighbors(c.getId(), CATEGORY_CHILDREN_ID, Graph.EDGES_IN);
+	Set<Category> neigborsSet = new HashSet<>();
+	for (Long id : neighbors)
+	{
+		neigborsSet.add(new Category(id));
+	}
+	neighbors.close();
+	return neigborsSet;
+}
+}

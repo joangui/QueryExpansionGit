@@ -1,0 +1,473 @@
+/*
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package configurations;
+
+import DEFS.Definitions;
+import FileManagement.Writer;
+import Parameters.Parameters;
+import communityMethods.AbstractCommunityMethod;
+import communityMethods.Circles;
+import communityMethods.Conductance;
+import communityMethods.Egocummunitties;
+import communityMethods.FromFile;
+import communityMethods.Modularity;
+import communityMethods.WCC_Circles;
+import edu.upc.dama.dex.core.Graph;
+import edu.upc.dama.dex.core.Objects;
+import edu.upc.dama.dex.utils.DexUtil;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.List;
+import scaleCommunities.AbstractCommunityScalator;
+import scaleCommunities.NoScale;
+import scaleCommunities.ScaleBasedOnInputContextSimilarity;
+import expansionBlocks.IdentifyEntities;
+
+/**
+ *
+ * @author joan
+ */
+public class Configuration
+{
+
+private final int nodeType;
+private final int edgeType;
+private final Graph graph;
+private final Parameters parameters;
+private METHOD method;
+//private final DEX dexGraph;
+//private final Session session;
+private final Objects allNodes;
+private final int totalNumberOfNodes;
+private final String NODE_NAME;
+private final String EDGE_NAME;
+private final String REDIRECTS_NAME;
+private final int redirectType;
+private final Double communityFusionThreshold;
+private final Definitions.LANGUAGE language;
+public boolean DEBUG_INFO = false;
+private final String QUERY_FILE;
+private AbstractCommunityMethod gm;
+private AbstractCommunityScalator sc;
+private String resultQueryFile = null;
+
+/**
+ * @param args the command line arguments
+ */
+public enum METHOD
+{
+
+MODULARITY, OSLOM, CIRCLES, WCC, WCC_CIRCLES, EGOCOMMUNITIES, CONDUCTANCE, LOUVAIN, INFOMAP
+}
+
+public enum TEST
+{
+
+WEBCLEF, DISK12, DISK45
+}
+
+public enum EXPANSION_BLOCK
+{
+
+READ_QUERIES, QUERY_PREPROCESS, CREATE_PATH, SELECT_PATH, CREATE_COMMUNITIES, PROCESS_COMMUNITIES, EXECUTE_QUERY, EVAL_RESULTS, IDENTIFY_ENTITIES, MULTIPLE_ENTITY_QUERY_EXPANSION
+}
+
+public enum SCALATOR
+{
+
+NONE, BASED_ON_SIMILARITY, BASED_ON_CATEGORIES
+}
+
+public enum PIPELINE
+{
+
+QUERY_EXPANSION, MULTIPLE_ENTITY_QUERY_EXPANSION, ADINTON_EXPERIMENTS, ENTITY_TEST_PIPELINE, HARCODED_QUERY
+
+}
+
+public Configuration(Parameters param) throws FileNotFoundException
+{
+
+	String DEX_FILE = param.getString("DEX_FILE");
+	System.out.println("DEX_FILE: " + DEX_FILE);
+
+	//dexGraph = new DEX("B3FW4-N9CHT-XVT2Y-2GBHH");
+	//GraphPool graphPool = dexGraph.openReadOnly(DEX_FILE);
+	//session = graphPool.newSession();
+	//graph = session.getDbGraph();
+	graph = DexUtil.getDBGraph();
+
+	NODE_NAME = param.readString("Article", "NODE_NAME");
+	EDGE_NAME = param.readString("links", "EDGE_NAME");
+	REDIRECTS_NAME = param.readString("redirects", "REDIRECT_NAME");
+
+	this.nodeType = graph.findType(NODE_NAME);
+	this.edgeType = graph.findType(EDGE_NAME);
+	this.redirectType = graph.findType(REDIRECTS_NAME);
+
+	if (nodeType == Graph.INVALID_NODE)
+	{
+		System.out.println("NODE NAME \"" + NODE_NAME + "\" IS NOT CORRECT");
+	}
+
+	if (edgeType == Graph.INVALID_EDGE)
+	{
+		System.out.println("EDGE NAME \"" + EDGE_NAME + "\" IS NOT CORRECT");
+	}
+
+	if (redirectType == Graph.INVALID_EDGE)
+	{
+		System.out.println("EDGE NAME \"" + REDIRECTS_NAME + "\" IS NOT CORRECT");
+	}
+
+	parameters = param;
+	QUERY_FILE = param.getString("QUERY_KONTEXT_FILE");
+
+	communityFusionThreshold = param.readDouble(1.0, "COMMUNITY_FUSION_THRESHOLD");
+
+	this.allNodes = graph.select(nodeType);
+	this.totalNumberOfNodes = allNodes.size();
+
+	this.language = param.getLanguage();
+	System.out.println("language is set to: " + this.language);
+	DEBUG_INFO = param.readBoolean(false, "DEBUG_INFO");
+
+//	DexUtil du = new DexUtil();
+//	System.out.println(du);
+}
+
+public Definitions.LANGUAGE getLanguage()
+{
+	return language;
+}
+
+public Double getCommunityFusionThreshold()
+{
+	return communityFusionThreshold;
+}
+
+public String getNODE_NAME()
+{
+	return NODE_NAME;
+}
+
+public String getEDGE_NAME()
+{
+	return EDGE_NAME;
+}
+
+public Objects getAllNodes()
+{
+	return allNodes;
+}
+
+public int getEdgeType()
+{
+	return edgeType;
+}
+
+public int getNodeType()
+{
+	return nodeType;
+}
+
+public int getRedirectType()
+{
+	return redirectType;
+}
+
+public Graph getGraph()
+{
+	return graph;
+}
+
+public void close()
+{
+	System.out.println("Shutting down the system");
+	allNodes.close();
+
+//	session.close();
+//	dexGraph.close();
+	DexUtil.shutdown();
+
+}
+
+public void setMethod(METHOD m)
+{
+	this.method = m;
+}
+
+public Parameters getParameters()
+{
+	return parameters;
+}
+
+public int getTotalNumberOfNodes()
+{
+	return totalNumberOfNodes;
+}
+
+public String getQUERY_FILE()
+{
+	return QUERY_FILE;
+}
+
+public List<String> getFilterFilePaths()
+{
+	return parameters.getStringList("FILTER_PATHS");
+}
+
+public String getExtensionNormalizationMethod()
+{
+	return parameters.readString("E", "EXTENSION_NORM");
+}
+
+public Boolean getStemmer()
+{
+	return parameters.readBoolean(false, "STEMMER");
+}
+
+public TEST getTrecTest()
+{
+	return TEST.valueOf(parameters.readString("WEBCLEF", "TEST"));
+}
+
+public String getResultCollectionPath()
+{
+	TEST trecTest = getTrecTest();
+	String collectionIndex = null;
+	switch (trecTest)
+	{
+		case WEBCLEF:
+			switch (language)
+			{
+				case ENGLISH:
+					if (!getStemmer())
+					{
+						collectionIndex = "/scratch/joan/DATASET IMAGES WIKIPEDIA/index";
+					} else
+					{
+						collectionIndex = "/scratch/joan/ResultCollections/WebClefStemmerIndex";
+					}
+					break;
+				case GERMAN:
+					collectionIndex = "/scratch/joan/DATASET IMAGES WIKIPEDIA/GermanIndex";
+					break;
+				default:
+					System.out.println("No index for " + language + ".");
+			}
+			break;
+		case DISK12:
+			collectionIndex = "/scratch/joan/ResultCollections/Disk1-2_Index";
+			break;
+		case DISK45:
+			collectionIndex = "/scratch/joan/ResultCollections/Disk4-5_Index";
+			break;
+	}
+
+	println("Results collection: " + collectionIndex);
+	return collectionIndex;
+}
+
+public PrintWriter getWriterExpansionQuery() throws FileNotFoundException, UnsupportedEncodingException
+{
+	return Writer.getWriter(parameters.readString("configurableqoqlqt.txt", "QOQLQT_FILE"));
+}
+
+public List<String> getStopwordFilesPath()
+{
+	return parameters.getStringList("FILTER_PATHS");
+}
+
+public METHOD getCommunityMethod()
+{
+	String communityMethod = parameters.getString("COMMUNITY_METHOD");
+	try
+	{
+		method = METHOD.valueOf(communityMethod);
+		return METHOD.valueOf(communityMethod);
+	} catch (NullPointerException e)
+	{
+		println("ERROR-Community method not specified. COMMUNITY_METHOD=\"\"");
+	}
+	return null;
+}
+
+private static List<METHOD> readMethods(Parameters param)
+{
+	List<METHOD> methods = new ArrayList<>();
+	List<String> readStringList = param.readStringList(new ArrayList<String>(), "METHODS", ",");
+	for (String s : readStringList)
+	{
+		methods.add(METHOD.valueOf(s));
+	}
+	return methods;
+}
+
+public boolean addRedirectsToCommunities()
+{
+	return parameters.readBoolean(true, "ADD_REDIRECTS_TO_COMMUNITIES");
+}
+
+public Double getFusionThreshold()
+{
+	return parameters.readDouble(1.0, "COMMUNITY_FUSION_THRESHOLD");
+}
+
+public String getResultQueryFile()
+{
+	if (resultQueryFile == null)
+	{
+		resultQueryFile = parameters.readString("resultQueries.xml", "RESULT_QUERY_FILE");
+	}
+	return resultQueryFile;
+}
+
+public String getReadableResultQueryFile()
+{
+	return parameters.readString(getResultQueryFile(), "READABLE_RESULT_QUERY_FILE");
+}
+
+public void setResultQueryFile(String resultQueryFile)
+{
+	this.resultQueryFile = resultQueryFile;
+
+}
+
+public String getResults()
+{
+	return parameters.readString("result.csv", "RESULTS_FILE");
+}
+
+public String getQRELFile()
+{
+	return parameters.getString("KNOWN_RESULTS_FILE");
+}
+
+private static void println(Object string)
+{
+	System.out.println("	[Configuration.java]: " + string);
+}
+
+private static void println()
+{
+	System.out.println("	[Configuration.java]: ");
+}
+
+private static void print(Object string)
+{
+	System.out.print("	[Configuration.java]: " + string);
+}
+
+private static void print()
+{
+	System.out.print("	[Configuration.java]: ");
+}
+
+public List<String> getResultConfiguration()
+{
+	return parameters.getStringList("RESULTS_CONFIG");
+}
+
+public String getTrecResultsFile()
+{
+	return parameters.readString("QueryResultsTRECEVAL.txt", "TREC_EVAL_FILE");
+}
+
+public EXPANSION_BLOCK getStartPoint()
+{
+	return EXPANSION_BLOCK.valueOf(parameters.readString("READ_QUERIES", "START_POINT"));
+
+}
+
+public EXPANSION_BLOCK getEndPoint()
+{
+	return EXPANSION_BLOCK.valueOf(parameters.readString("EVAL_RESULTS", "END_POINT"));
+
+}
+
+public AbstractCommunityMethod getAbstractCommunityMethod() throws IOException
+{
+	if (gm != null)
+	{
+		return gm;
+	} else
+	{
+		String communityMethod = parameters.getString("COMMUNITY_METHOD");
+		method = METHOD.valueOf(communityMethod);
+		switch (method)
+		{
+			case MODULARITY:
+				gm = new Modularity(this);
+				break;
+			case CONDUCTANCE:
+				gm = new Conductance(this);
+				break;
+			case CIRCLES:
+				gm = new Circles(this);
+				break;
+			case WCC_CIRCLES:
+				gm = new WCC_Circles(this);
+				break;
+			case EGOCOMMUNITIES:
+				gm = new Egocummunitties(this);
+				break;
+			case INFOMAP:
+			case OSLOM:
+			case WCC:
+			case LOUVAIN:
+				gm = new FromFile(this);
+				break;
+
+		}
+		return gm;
+	}
+
+}
+
+public AbstractCommunityScalator getAbstractCommunityScalator()
+{
+	if (sc != null)
+	{
+		return sc;
+	} else
+	{
+		String communityMethod = parameters.readString("BASED_ON_SIMILARITY", "COMMUNITY_SCALATOR");
+		SCALATOR scalator = SCALATOR.valueOf(communityMethod);
+		switch (scalator)
+		{
+			case NONE:
+				sc = new NoScale();
+				break;
+			case BASED_ON_SIMILARITY:
+				sc = new ScaleBasedOnInputContextSimilarity();
+				break;
+
+		}
+		return sc;
+
+	}
+
+}
+
+public boolean printTopologicalExtension()
+{
+	return parameters.readBoolean(false, "PRINT_TOPOLOGICAL_EXTENSION");
+}
+
+public PIPELINE getPipeline()
+{
+	return PIPELINE.valueOf(parameters.readString("QUERY_EXPANSION", "PIPELINE"));
+}
+
+public String getQueryId()
+{
+	return parameters.getString("QUERY_ID");
+}
+
+}
