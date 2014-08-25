@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project-private xmlns="http://www.netbeans.org/ns/project-private/1">
+    <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
+    <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
+        <group>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/pipelines/MultipleEntityQueryExpansionPipeline.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/model/Token.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/topologicalPlainQuery93.txt</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/expansionBlocks/QueryPreProcess.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/input-RESULT_COLLECTION_IDENTIFY_ENTITIES.cfg</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/expansionBlocks/IdentifyEntities.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/imagesResults_116.txt</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/expansionBlocks/ExecuteQuery.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/input.cfg</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/pipelines/HardcodedQueryPipeline.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/model/Article.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/configurations/Configuration.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/pipelines/PipelineChooser.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/expansionBlocks/EvalResults.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/topologicalQuery107.txt</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/pipelines/ReweightQuery.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/dex-config.xml</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/topologicalQuery93.txt</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/pipelines/ResultCollectionIdentifyEntities.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/expansionBlocks/SelectPaths.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/model/Entity.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/pipelines/QueryExpansionPipeline.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/utils/ProcessImageCollection.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/expansionBlocks/MultipleEntityQueryExpansion.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/pipelines/ReweightQueriesPipeline.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/expansionBlocks/CreatePaths.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/utils/IndriModule.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/pipelines/EntityTestPipeLine.java</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/imagesResults_93.txt</file>
+            <file>file:/home/joan/DAMA/Recercaixa/QueryExpansion/src/model/Query.java</file>
+        </group>
+    </open-files>
+</project-private>
